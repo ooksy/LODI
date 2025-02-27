@@ -258,10 +258,10 @@ for(s in 2:n_sim){
   r_it[,,s] <- r[,1,]
   alpha0_grp_update[,,s] <- alpha0_grp
   alpha_ijt[,,,s] <- alpha
-  # alpha0_update[,,s] <- alpha0
+  alpha0_update[,,s] <- alpha0
   w_update[s,] <- w
-  mu_j0_update[s,] <- mu0_j
-  mu_jl_update[,,s-1] <- mu_jl
+  # mu_j0_update[s,] <- mu0_j
+  # mu_jl_update[,,s-1] <- mu_jl
   phi1[s-1] <- phi_g1
   phi2[s-1] <- phi_g2
   lambda_j[,,s-1] <- t(Lambda)
@@ -346,65 +346,65 @@ for(s in 2:n_sim){
   #   }
   # }
   
-  # update alpha0 | group
-  # time point T update
-  for(i in 1:n){
-    for(j in 1:J){
-      # draw alpha0
-      grp_idx <- alpha0_grp_update[i,j,s]
-
-      m[1] <- mu_jl_update[grp_idx,j,s-1]
-      C[1] <- sigma_base
-
-      for(t in 1:T){
-        if(i %in% g1){
-          a[t] <- phi1[s-1]*m[t] ; R[t] <- (phi1[s-1]^2)*C[t] + sig_w_t
-        } else {
-          a[t] <- phi2[s-1]*m[t] ; R[t] <- (phi2[s-1]^2)*C[t] + sig_w_t
-        }
-
-        m[t+1] <- (a[t]/R[t] + (post_latent[i,j,t,s] - r_it[i,t,s] - lambda_j[,j,s-1]%*%eta_it[,i,t,s-1])/sigma_t[s-1])/(1/R[t] + 1/sigma_t[s-1])
-        C[t+1] <- 1/(1/R[t] + 1/sigma_t[s-1])
-      }
-
-      alpha_ijt[i,j,T,s] <- rnorm(1, mean = m[T+1], sd = sqrt(C[T+1])) # first draw a_ijT
-
-      # draw a_ij(T-1)
-      for(t in (T-1):1){
-        if(i %in% g1){
-          alpha_mean <- (m[t+1]/C[t+1] + phi1[s-1]*alpha_ijt[i,j,t+1,s]/sig_w_t) # sig_w_t is known, fixed
-          alpha_var <- (1/C[t+1] + phi1[s-1]^2/sig_w_t)
-          alpha_mean <- alpha_mean/alpha_var
-          alpha_var <- 1/alpha_var
-        } else {
-          alpha_mean <- (m[t+1]/C[t+1] + phi2[s-1]*alpha_ijt[i,j,t+1,s]/sig_w_t) # sig_w_t is known, fixed
-          alpha_var <- (1/C[t+1] + phi2[s-1]^2/sig_w_t)
-          alpha_mean <- alpha_mean/alpha_var
-          alpha_var <- 1/alpha_var
-        }
-
-        alpha_ijt[i,j,t,s] <- rnorm(1, mean = alpha_mean, sd = sqrt(alpha_var))
-      }
-
-      # draw alpha0
-      if(i %in% g1){
-        alpha0_mean <- (m[1]/C[1] + phi1[s-1]*alpha_ijt[i,j,1,s]/sig_w_t)
-        alpha0_var <- (1/C[1] + phi1[s-1]^2/sig_w_t)
-        alpha0_mean <- alpha0_mean/alpha0_var
-        alpha0_var <- 1/alpha0_var
-      } else {
-        alpha0_mean <- (m[1]/C[1] + phi2[s-1]*alpha_ijt[i,j,1,s]/sig_w_t)
-        alpha0_var <- (1/C[1] + phi2[s-1]^2/sig_w_t)
-        alpha0_mean <- alpha0_mean/alpha0_var
-        alpha0_var <- 1/alpha0_var
-      }
-
-      alpha0_update[i,j,s] <- rnorm(1, mean = alpha0_mean, sd = sqrt(alpha0_var))
-
-
-
-    }
-  }
+  # # update alpha0 | group
+  # # time point T update
+  # for(i in 1:n){
+  #   for(j in 1:J){
+  #     # draw alpha0
+  #     grp_idx <- alpha0_grp_update[i,j,s]
+  # 
+  #     m[1] <- mu_jl_update[grp_idx,j,s-1]
+  #     C[1] <- sigma_base
+  # 
+  #     for(t in 1:T){
+  #       if(i %in% g1){
+  #         a[t] <- phi1[s-1]*m[t] ; R[t] <- (phi1[s-1]^2)*C[t] + sig_w_t
+  #       } else {
+  #         a[t] <- phi2[s-1]*m[t] ; R[t] <- (phi2[s-1]^2)*C[t] + sig_w_t
+  #       }
+  # 
+  #       m[t+1] <- (a[t]/R[t] + (post_latent[i,j,t,s] - r_it[i,t,s] - lambda_j[,j,s-1]%*%eta_it[,i,t,s-1])/sigma_t[s-1])/(1/R[t] + 1/sigma_t[s-1])
+  #       C[t+1] <- 1/(1/R[t] + 1/sigma_t[s-1])
+  #     }
+  # 
+  #     alpha_ijt[i,j,T,s] <- rnorm(1, mean = m[T+1], sd = sqrt(C[T+1])) # first draw a_ijT
+  # 
+  #     # draw a_ij(T-1)
+  #     for(t in (T-1):1){
+  #       if(i %in% g1){
+  #         alpha_mean <- (m[t+1]/C[t+1] + phi1[s-1]*alpha_ijt[i,j,t+1,s]/sig_w_t) # sig_w_t is known, fixed
+  #         alpha_var <- (1/C[t+1] + phi1[s-1]^2/sig_w_t)
+  #         alpha_mean <- alpha_mean/alpha_var
+  #         alpha_var <- 1/alpha_var
+  #       } else {
+  #         alpha_mean <- (m[t+1]/C[t+1] + phi2[s-1]*alpha_ijt[i,j,t+1,s]/sig_w_t) # sig_w_t is known, fixed
+  #         alpha_var <- (1/C[t+1] + phi2[s-1]^2/sig_w_t)
+  #         alpha_mean <- alpha_mean/alpha_var
+  #         alpha_var <- 1/alpha_var
+  #       }
+  # 
+  #       alpha_ijt[i,j,t,s] <- rnorm(1, mean = alpha_mean, sd = sqrt(alpha_var))
+  #     }
+  # 
+  #     # draw alpha0
+  #     if(i %in% g1){
+  #       alpha0_mean <- (m[1]/C[1] + phi1[s-1]*alpha_ijt[i,j,1,s]/sig_w_t)
+  #       alpha0_var <- (1/C[1] + phi1[s-1]^2/sig_w_t)
+  #       alpha0_mean <- alpha0_mean/alpha0_var
+  #       alpha0_var <- 1/alpha0_var
+  #     } else {
+  #       alpha0_mean <- (m[1]/C[1] + phi2[s-1]*alpha_ijt[i,j,1,s]/sig_w_t)
+  #       alpha0_var <- (1/C[1] + phi2[s-1]^2/sig_w_t)
+  #       alpha0_mean <- alpha0_mean/alpha0_var
+  #       alpha0_var <- 1/alpha0_var
+  #     }
+  # 
+  #     alpha0_update[i,j,s] <- rnorm(1, mean = alpha0_mean, sd = sqrt(alpha0_var))
+  # 
+  # 
+  # 
+  #   }
+  # }
   
   # update weight
   # v <- c()
@@ -431,24 +431,24 @@ for(s in 2:n_sim){
   #   }
   # }
   
-  # # new update mu_j0 and mu_jl
-  # for(j in 1:J){
-  #   mu0_sigma <- (1/(sigma0^2)) + (L/sigma_base^2)
-  #   mu0_sigma <- 1/mu0_sigma
-  #   mu0_mean <- (mu0/(sigma0^2)) + (sum(mu_jl_update[,j,s-1])/sigma_base^2)
-  #   mu0_mean <- mu0_sigma*mu0_mean
-  #   
-  #   mu_j0_update[s,j] <- rnorm(1, mean = mu0_mean, sd = sqrt(mu0_sigma))
-  #   
-  #   for(l in 1:L){
-  #     mu_jl_sigma <- (1/(sigma_base^2)) + (sum(alpha0_grp_update[,j,s]==l)/(sigma_base^2))
-  #     mu_jl_sigma <- 1/mu_jl_sigma
-  #     mu_jl_mean <- (mu_j0_update[s,j]/(sigma_base^2)) + (sum(alpha_current[alpha0_grp_update[,j,s]==l])/(sigma_base^2))
-  #     mu_jl_mean <- mu_jl_sigma*mu_jl_mean
-  #     
-  #     mu_jl_update[l,j,s] <- rnorm(1, mean = mu_jl_mean, sd = sqrt(mu_jl_sigma))
-  #   }
-  # }
+  # new update mu_j0 and mu_jl
+  for(j in 1:J){
+    mu0_sigma <- (1/(sigma0^2)) + (L/sigma_base^2)
+    mu0_sigma <- 1/mu0_sigma
+    mu0_mean <- (mu0/(sigma0^2)) + (sum(mu_jl_update[,j,s-1])/sigma_base^2)
+    mu0_mean <- mu0_sigma*mu0_mean
+
+    mu_j0_update[s,j] <- rnorm(1, mean = mu0_mean, sd = sqrt(mu0_sigma))
+
+    for(l in 1:L){
+      mu_jl_sigma <- (1/(sigma_base^2)) + (sum(alpha0_grp_update[,j,s]==l)/(sigma_base^2))
+      mu_jl_sigma <- 1/mu_jl_sigma
+      mu_jl_mean <- (mu_j0_update[s,j]/(sigma_base^2)) + (sum(alpha_current[alpha0_grp_update[,j,s]==l])/(sigma_base^2))
+      mu_jl_mean <- mu_jl_sigma*mu_jl_mean
+
+      mu_jl_update[l,j,s] <- rnorm(1, mean = mu_jl_mean, sd = sqrt(mu_jl_sigma))
+    }
+  }
   
   
 
