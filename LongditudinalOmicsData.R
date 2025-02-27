@@ -337,6 +337,9 @@ for(s in 2:n_sim){
   #     for(l in 1:L){
   #       grp_prob[l] <- w_update[s-1,l]*dnorm(alpha0_update[i,j,s-1], mean = mu_jl_update[l,j,s-1], sd = sigma_base)
   #     }
+  #     
+  #     if(grp_prob == rep(0, L)) {grp_prob <- rep(1/L, L)}
+  #     
   #     alpha0_grp_update[i,j,s] <- sample(x=1:L, size = 1, replace = T, prob = grp_prob/sum(grp_prob))
   #   }
   # }
@@ -418,7 +421,7 @@ for(s in 2:n_sim){
   # update mu_jl
   for(j in 1:J){
     for(l in 1:L){
-      mu_sigma <- 1/(1/sigma0^2 + 1/sigma_base^2)
+      mu_sigma <- 1/(1/sigma0^2 + sum(alpha0_grp_update[,j,s]==l)/sigma_base^2)
       alpha_current <- alpha0_update[,,s]
       mu_mean <- mu_sigma*(mu0/sigma0^2 + sum(alpha_current[alpha0_grp_update[,j,s]==l])/sigma_base^2)
       mu_jl_update[l,j,s] <- rnorm(1, mean = mu_mean, sd = sqrt(mu_sigma))
