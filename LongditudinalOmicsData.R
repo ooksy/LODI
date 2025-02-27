@@ -39,7 +39,7 @@ v <- c()
 v <- rbeta(L-1, shape1 = 1, shape2 = c)
 w[1] <- v[1]
 for(l in 2:(L-1)){
-  w[l] <- v[l]*prod(1-v[1:l-1])
+  w[l] <- v[l]*prod(1-v[1:(l-1)])
 }
 w[L] <- 1-sum(w)
 
@@ -211,7 +211,7 @@ data <- y_count
 
 # gibbs sampling ###############################################################
 # parameter setting
-n_sim <- 5000
+n_sim <- 1000
 mu_updated <- array(0, dim=c(n, J, T))
 post_latent <- array(0, dim=c(n, J, T, n_sim))
 #post_latent[,,,1] <- post_latent0
@@ -221,11 +221,12 @@ lambda_j <- array(0, dim=c(K, J, n_sim))
 eta_it <- array(0, dim=c(K, n, T, n_sim))
 sigma_t <- matrix(NA, nrow = n_sim, ncol = 1) # variance. norm function 안에 들어갈때는 sqrt 해줘야함
 sigma_t[1] <- 2 # initial value
-w_update <- matrix(0, nrow = niter, ncol = L)
+w_update <- matrix(0, nrow = n_sim, ncol = L)
 w_update[1,] <- rep(1/L,L) # initial value
-alpha0_grp_update <- array(data = 0, dim = c(n, J, niter))
-alpha0_update <- array(data = 0, dim = c(n, J, niter))
-mu_jl_update <- array(data = 0, dim = c(L, J, niter))
+alpha0_grp_update <- array(data = 0, dim = c(n, J, n_sim))
+alpha0_update <- array(data = 0, dim = c(n, J, n_sim))
+mu_jl_update <- array(data = 0, dim = c(L, J, n_sim))
+mu_jl_update[,,1] <- rnorm(L*J, mean = 2, sd = 1) # initialize mu_jl with reasonable value # need to be updated with estimated value from the data
 m <- rep(0, T+1)
 C <- rep(0, T+1)
 m[1] <- 1 ; C[1] <- 0.8
@@ -254,15 +255,17 @@ for(s in 2:n_sim){
   
   post_latent[,,,s] <- y
   r_it[,,s] <- r[,1,]
-  # alpha_ijt[,,,s] <- alpha
-  alpha0_update[,,s] <- alpha0
   alpha0_grp_update[,,s] <- alpha0_grp
-  phi1[s] <- phi_g1
-  phi2[s] <- phi_g2
-  lambda_j[,,s] <- t(Lambda)
-  eta_it[,,,s] <- eta[,,]
-  rho_est[s] <- rho
-  sigma_t[s] <- sigma_sq
+  alpha_ijt[,,,s] <- alpha
+  alpha0_update[,,s] <- alpha0
+  w_update[s,] <- w
+  # mu_jl_update[,,s-1] <- mu_jl
+  phi1[s-1] <- phi_g1
+  phi2[s-1] <- phi_g2
+  lambda_j[,,s-1] <- t(Lambda)
+  eta_it[,,,s-1] <- eta[,,]
+  rho_est[s-1] <- rho
+  sigma_t[s-1] <- sigma_sq
   
   #sampling posterior latent variable ########################################
   # for(i in 1:n){
@@ -328,73 +331,88 @@ for(s in 2:n_sim){
 
   # alpha update #############################################################
   # update group membership
-  grp_prob <- c()
-  for(i in 1:n){
-    for(j in 1:J){
-      for(l in 1:L){
-        grp_prob[l] <- w_update[s-1,l]*dnorm(alpha0_update[i,j,s-1], mean = mu_jl_update[l,j,s-1], sd = sigma_base)
-      }
-      alpha0_grp_update[i,j,s] <- sample(x=1:L, size = 1, replace = T, prob = grp_prob/sum(grp_prob))
-    }
-  }
+  # grp_prob <- c()
+  # for(i in 1:n){
+  #   for(j in 1:J){
+  #     for(l in 1:L){
+  #       grp_prob[l] <- w_update[s-1,l]*dnorm(alpha0_update[i,j,s-1], mean = mu_jl_update[l,j,s-1], sd = sigma_base)
+  #     }
+  #     alpha0_grp_update[i,j,s] <- sample(x=1:L, size = 1, replace = T, prob = grp_prob/sum(grp_prob))
+  #   }
+  # }
   
-  # update alpha0 | group
-  # time point T update
-  for(i in 1:n){
-    for(j in 1:J){
-      # draw alpha0
-      grp_idx <- alpha0_grp_update[i,j,s]
-      alpha0_update[i,j,s] <- rnorm(1, mean = mu_jl_update[grp_idx,j,s-1], sd = sigma_base)
-      
-      m[1] <- mu_jl_update[grp_idx,j,s-1]
-      C[1] <- sigma_base
-      
-      for(t in 1:T){
-        if(i %in% g1){
-          a[t] <- phi1[s-1]*m[t] ; R[t] <- (phi1[s-1]^2)*C[t] + sig_w_t
-        } else {
-          a[t] <- phi2[s-1]*m[t] ; R[t] <- (phi2[s-1]^2)*C[t] + sig_w_t
-        }
-
-        m[t+1] <- (a[t]/R[t] + (post_latent[i,j,t,s] - r_it[i,t,s] - lambda_j[,j,s-1]%*%eta_it[,i,t,s-1])/sigma_t[s-1])/(1/R[t] + 1/sigma_t[s-1])
-        C[t+1] <- 1/(1/R[t] + 1/sigma_t[s-1])
-      }
-
-      alpha_ijt[i,j,T,s] <- rnorm(1, mean = m[T+1], sd = sqrt(C[T+1])) # first draw a_ijT
-
-      # draw a_ij(T-1)
-      for(t in (T-1):1){
-        if(i %in% g1){
-          alpha_mean <- (m[t+1]/C[t+1] + phi1[s-1]*alpha_ijt[i,j,t+1,s]/sig_w_t) # sig_w_t is known, fixed
-          alpha_var <- (1/C[t+1] + phi1[s-1]^2/sig_w_t)
-          alpha_mean <- alpha_mean/alpha_var
-          alpha_var <- 1/alpha_var
-        } else {
-          alpha_mean <- (m[t+1]/C[t+1] + phi2[s-1]*alpha_ijt[i,j,t+1,s]/sig_w_t) # sig_w_t is known, fixed
-          alpha_var <- (1/C[t+1] + phi2[s-1]^2/sig_w_t)
-          alpha_mean <- alpha_mean/alpha_var
-          alpha_var <- 1/alpha_var
-        }
-
-        alpha_ijt[i,j,t,s] <- rnorm(1, mean = alpha_mean, sd = sqrt(alpha_var))
-      }
-      
-      
-    }
-  }
+  # # update alpha0 | group
+  # # time point T update
+  # for(i in 1:n){
+  #   for(j in 1:J){
+  #     # draw alpha0
+  #     grp_idx <- alpha0_grp_update[i,j,s]
+  # 
+  #     m[1] <- mu_jl_update[grp_idx,j,s-1]
+  #     C[1] <- sigma_base
+  # 
+  #     for(t in 1:T){
+  #       if(i %in% g1){
+  #         a[t] <- phi1[s-1]*m[t] ; R[t] <- (phi1[s-1]^2)*C[t] + sig_w_t
+  #       } else {
+  #         a[t] <- phi2[s-1]*m[t] ; R[t] <- (phi2[s-1]^2)*C[t] + sig_w_t
+  #       }
+  # 
+  #       m[t+1] <- (a[t]/R[t] + (post_latent[i,j,t,s] - r_it[i,t,s] - lambda_j[,j,s-1]%*%eta_it[,i,t,s-1])/sigma_t[s-1])/(1/R[t] + 1/sigma_t[s-1])
+  #       C[t+1] <- 1/(1/R[t] + 1/sigma_t[s-1])
+  #     }
+  # 
+  #     alpha_ijt[i,j,T,s] <- rnorm(1, mean = m[T+1], sd = sqrt(C[T+1])) # first draw a_ijT
+  # 
+  #     # draw a_ij(T-1)
+  #     for(t in (T-1):1){
+  #       if(i %in% g1){
+  #         alpha_mean <- (m[t+1]/C[t+1] + phi1[s-1]*alpha_ijt[i,j,t+1,s]/sig_w_t) # sig_w_t is known, fixed
+  #         alpha_var <- (1/C[t+1] + phi1[s-1]^2/sig_w_t)
+  #         alpha_mean <- alpha_mean/alpha_var
+  #         alpha_var <- 1/alpha_var
+  #       } else {
+  #         alpha_mean <- (m[t+1]/C[t+1] + phi2[s-1]*alpha_ijt[i,j,t+1,s]/sig_w_t) # sig_w_t is known, fixed
+  #         alpha_var <- (1/C[t+1] + phi2[s-1]^2/sig_w_t)
+  #         alpha_mean <- alpha_mean/alpha_var
+  #         alpha_var <- 1/alpha_var
+  #       }
+  # 
+  #       alpha_ijt[i,j,t,s] <- rnorm(1, mean = alpha_mean, sd = sqrt(alpha_var))
+  #     }
+  # 
+  #     # draw alpha0
+  #     if(i %in% g1){
+  #       alpha0_mean <- (m[1]/C[1] + phi1[s-1]*alpha_ijt[i,j,1,s]/sig_w_t)
+  #       alpha0_var <- (1/C[1] + phi1[s-1]^2/sig_w_t)
+  #       alpha0_mean <- alpha_mean/alpha_var
+  #       alpha0_var <- 1/alpha_var
+  #     } else {
+  #       alpha0_mean <- (m[1]/C[1] + phi2[s-1]*alpha_ijt[i,j,1,s]/sig_w_t)
+  #       alpha0_var <- (1/C[1] + phi2[s-1]^2/sig_w_t)
+  #       alpha0_mean <- alpha_mean/alpha_var
+  #       alpha0_var <- 1/alpha_var
+  #     }
+  # 
+  #     alpha0_update[i,j,s] <- rnorm(1, mean = alpha0_mean, sd = sqrt(alpha0_var))
+  # 
+  # 
+  # 
+  #   }
+  # }
   
   # update weight
-  v <- c()
-  
-  for(l in 1:(L-1)){
-    v[l] <- rbeta(1, shape1 = 1 + sum(alpha0_grp_update[,,s]==l), shape2 = c + sum(alpha0_grp_update[,,s]>l))
-  }
-  
-  w_update[s,1] <- v[1]
-  for(l in 2:(L-1)){
-    w_update[s,l] <- v[l]*prod(1-v[1:l-1])
-  }
-  w_update[s,L] <- 1-sum(w_update[s,])
+  # v <- c()
+  # 
+  # for(l in 1:(L-1)){
+  #   v[l] <- rbeta(1, shape1 = 1 + sum(alpha0_grp_update[,,s]==l), shape2 = c + sum(alpha0_grp_update[,,s]>l))
+  # }
+  # 
+  # w_update[s,1] <- v[1]
+  # for(l in 2:(L-1)){
+  #   w_update[s,l] <- v[l]*prod(1-v[1:(l-1)])
+  # }
+  # w_update[s,L] <- 1-sum(w_update[s,])
   
   
   # update mu_jl
@@ -402,7 +420,7 @@ for(s in 2:n_sim){
     for(l in 1:L){
       mu_sigma <- 1/(1/sigma0^2 + 1/sigma_base^2)
       alpha_current <- alpha0_update[,,s]
-      mu_mean <- mu_sigma*(mu0/sigma0^2 + sum(alpha_current[alpha0_grp_update[,,s]==l])/sigma_base^2)
+      mu_mean <- mu_sigma*(mu0/sigma0^2 + sum(alpha_current[alpha0_grp_update[,j,s]==l])/sigma_base^2)
       mu_jl_update[l,j,s] <- rnorm(1, mean = mu_mean, sd = sqrt(mu_sigma))
     }
   }
@@ -636,7 +654,7 @@ par(mar = c(1,1,1,1))
 
 for(t in 1:T){
   
-  png(file = paste("C:/Users/SEC/Desktop/research/25-1/week2/alpha_ij",t,".png", sep=""),
+  png(file = paste("C:/Users/SEC/Desktop/research/25-1/week7/alpha_ij",t,".png", sep=""),
       width = 6,
       height = 5,
       units = "in",
@@ -648,6 +666,8 @@ for(t in 1:T){
   dev.off()
   
 }
+
+
 
 
 graphics.off()
@@ -685,46 +705,56 @@ for(t in 1:T){
 
 # alpha0
 library(ComplexHeatmap)
-alpha0 ; alpha0_update[,,niter]
+alpha0 ; alpha0_update[,,n_sim]
 
 rownames(alpha0) <- paste0("row",1:20)
 colnames(alpha0) <- paste0("column",1:30)
-rownames(alpha0_update[,,niter]) <- paste0("row",1:20)
-colnames(alpha0_update[,,niter]) <- paste0("column",1:30)
+rownames(alpha0_update[,,n_sim]) <- paste0("row",1:20)
+colnames(alpha0_update[,,n_sim]) <- paste0("column",1:30)
 
 ht1 <- Heatmap(alpha0, column_order = colnames(alpha0), row_order = rownames(alpha0),
                , column_title = "alpha0")
-ht2 <- Heatmap(alpha0_update[,,niter], column_order = colnames(alpha0_update[,,niter]), row_order = rownames(alpha0_update[,,niter]),
+ht2 <- Heatmap(alpha0_update[,,n_sim], column_order = colnames(alpha0_update[,,n_sim]), row_order = rownames(alpha0_update[,,n_sim]),
                , column_title = "estimated")
 ht_list <- ht1 + ht2
 draw(ht_list, column_title = "alpha0")
 
 
 # latent variable (group member)
-alpha0_grp ; alpha0_grp_update[,,niter]
+alpha0_grp ; alpha0_grp_update[,,n_sim]
 
 rownames(alpha0_grp) <- paste0("row",1:20)
 colnames(alpha0_grp) <- paste0("column",1:30)
-rownames(alpha0_grp_update[,,niter]) <- paste0("row",1:20)
-colnames(alpha0_grp_update[,,niter]) <- paste0("column",1:30)
+rownames(alpha0_grp_update[,,n_sim]) <- paste0("row",1:20)
+colnames(alpha0_grp_update[,,n_sim]) <- paste0("column",1:30)
 
 ht1 <- Heatmap(alpha0_grp, column_order = colnames(alpha0_grp), row_order = rownames(alpha0_grp),
                , column_title = "alpha0_group")
-ht2 <- Heatmap(alpha0_grp_update[,,niter], column_order = colnames(alpha0_grp_update[,,niter]), row_order = rownames(alpha0_grp_update[,,niter]),
+ht2 <- Heatmap(alpha0_grp_update[,,n_sim], column_order = colnames(alpha0_grp_update[,,n_sim]), row_order = rownames(alpha0_grp_update[,,n_sim]),
                , column_title = "estimated")
 ht_list <- ht1 + ht2
 draw(ht_list, column_title = "alpha0_grp")
 
 # weight
-round(w, digits = 2) ; round(w_update[niter,], digits = 2)
+round(w, digits = 2) ; round(w_update[n_sim,], digits = 2)
 pie(round(w, digits = 2), main= "true weight")
-pie(round(w_update[niter,], digits = 2), main= "estimated weight")
+pie(round(w_update[n_sim,], digits = 2), main= "estimated weight")
 
 
 # mu_jl
-mu_jl ; mu_jl_update[,,niter]
+mu_jl ; mu_jl_update[,,n_sim]
 
+rownames(mu_jl) <- paste0("row",1:30)
+colnames(mu_jl) <- paste0("column",1:30)
+rownames(mu_jl_update[,,n_sim]) <- paste0("row",1:30)
+colnames(mu_jl_update[,,n_sim]) <- paste0("column",1:30)
 
+ht1 <- Heatmap(mu_jl, column_order = colnames(mu_jl), row_order = rownames(mu_jl),
+               , column_title = "mu_jl")
+ht2 <- Heatmap(mu_jl_update[,,n_sim], column_order = colnames(mu_jl_update[,,n_sim]), row_order = rownames(mu_jl_update[,,n_sim]),
+               , column_title = "estimated mu_jl")
+ht_list <- ht1 + ht2
+draw(ht_list, column_title = "mu_jl")
 
 
 # phi check
