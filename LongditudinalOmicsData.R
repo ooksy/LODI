@@ -417,8 +417,8 @@ for(s in 2:n_sim){
   for(l in 2:(L-1)){
     w_update[s,l] <- v[l]*prod(1-v[1:(l-1)])
   }
-  w_update[s,L] <- 1-sum(w_update[s,1:(L-1)])
-  
+  if(sum(w_update[s,1:(L-1)]) >= 1) w_update[s,L] <- 0 else w_update[s,L] <- 1-sum(w_update[s,1:(L-1)])
+ 
   
   # update mu_jl
   for(j in 1:J){
