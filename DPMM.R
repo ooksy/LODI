@@ -16,7 +16,7 @@ v <- c()
 v <- rbeta(L-1, shape1 = 1, shape2 = c)
 w[1] <- v[1]
 for(l in 2:(L-1)){
-  w[l] <- v[l]*prod(1-v[1:l-1])
+  w[l] <- v[l]*prod(1-v[1:(l-1)])
 }
 w[L] <- 1-sum(w)
 
@@ -92,7 +92,7 @@ for(s in 2:niter){
   
   w_update[s,1] <- v[1]
   for(l in 2:(L-1)){
-    w_update[s,l] <- v[l]*prod(1-v[1:l-1])
+    w_update[s,l] <- v[l]*prod(1-v[1:(l-1)])
   }
   w_update[s,L] <- 1-sum(w_update[s,])
   
