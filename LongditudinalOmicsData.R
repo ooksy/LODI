@@ -443,7 +443,7 @@ for(s in 2:n_sim){
     for(l in 1:L){
       mu_jl_sigma <- (1/(sigma_base^2)) + (sum(alpha0_grp_update[,j,s]==l)/(sigma_base^2))
       mu_jl_sigma <- 1/mu_jl_sigma
-      mu_jl_mean <- (mu_j0_update[s,j]/(sigma_base^2)) + (sum(alpha_current[alpha0_grp_update[,j,s]==l])/(sigma_base^2))
+      mu_jl_mean <- (mu_j0_update[s,j]/(sigma_base^2)) + (sum(alpha0_update[alpha0_grp_update[,j,s]==l,j,s])/(sigma_base^2))
       mu_jl_mean <- mu_jl_sigma*mu_jl_mean
 
       mu_jl_update[l,j,s] <- rnorm(1, mean = mu_jl_mean, sd = sqrt(mu_jl_sigma))
