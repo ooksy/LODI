@@ -7,6 +7,8 @@ mouse$Timepoint <- factor(mouse$Timepoint, levels = c("W0", "W1", "W3", "W7", "W
 uniq_grp <- unique(mouse$Grouped.genotype)
 uniq_timept <- unique(mouse$Timepoint)
 
+
+# density plot along the timepoint : real data
 par(mfrow = c(1,length(uniq_timept)))
 for(i in 1:length(uniq_grp)){
   for(j in 1:length(uniq_timept)){
@@ -16,4 +18,15 @@ for(i in 1:length(uniq_grp)){
   }
 }
 
+
+# density plot along the timepoint : simulation data
+par(mfrow = c(1,T))
+for(t in 1:T){
+    plot(density(y_count[1:10,,t]),  main = paste("grp :", 1, "timept :", t))
+}
+
+par(mfrow = c(1,T))
+for(t in 1:T){
+  plot(density(y_count[11:20,,t]),  main = paste("grp :", 2, "timept :", t))
+}
 
