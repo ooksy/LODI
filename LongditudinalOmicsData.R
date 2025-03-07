@@ -162,13 +162,14 @@ y_exp
 # exp(-10) ; exp(-5) ; exp(0) ; exp(3) ; exp(5) ; exp(10) ; exp(11)
 # exp(0) 밑은 다 0으로 집계됨
 # exp(10)만 되어도 굉장히 큼
-# 실제 데이터는 4만이 거의 최대
+# 실제 데이터는 10만이 거의 최대
 
 y_count <- floor(y_exp) # observed count data
 y_count 
 # some values are too big
 # 실제 데이터는 OTU별로 값이 비슷비슷함
 # 실제 데이터는 0이 이렇게 많지 않음
+
 
 data <- y_count
 
@@ -211,7 +212,7 @@ data <- y_count
 
 # gibbs sampling ###############################################################
 # parameter setting
-n_sim <- 1000
+n_sim <- 5000
 mu_updated <- array(0, dim=c(n, J, T))
 post_latent <- array(0, dim=c(n, J, T, n_sim))
 #post_latent[,,,1] <- post_latent0
@@ -645,7 +646,7 @@ par(mar = c(1, 1, 1, 1))
 
 for(t in 1:T){
   
-  png(file = paste("C:/Users/SEC/Desktop/research/25-1/week2/r_i",t,".png", sep=""),
+  png(file = paste("C:/Users/SEC/Desktop/research/25-1/week8/r_i",t,".png", sep=""),
       width = 6,
       height = 5,
       units = "in",
@@ -667,6 +668,8 @@ ts.plot(r_it[2,1,]) # trace plot seems good
 
 # alpha check ##################################################################
 alpha_mean <- numeric()
+
+# calculating posterior mean
 for(t in 1:T){
   alpha_mean[t] <- mean(alpha_ijt[1,1,t,])  
 }
@@ -676,11 +679,12 @@ cbind("post mean"=alpha_mean, "last value" = alpha_ijt[1,1,,n_sim], "true" = alp
 
 alpha_ijt[,,,n_sim] ; alpha
 
+# creating image
 par(mar = c(1,1,1,1))
 
 for(t in 1:T){
   
-  png(file = paste("C:/Users/SEC/Desktop/research/25-1/week7/alpha_ij",t,".png", sep=""),
+  png(file = paste("C:/Users/SEC/Desktop/research/25-1/week8/alpha_ij",t,".png", sep=""),
       width = 6,
       height = 5,
       units = "in",
@@ -694,56 +698,29 @@ for(t in 1:T){
 }
 
 
-
-
 graphics.off()
 
+# check trace plot
 ts.plot(alpha_ijt[1,1,1,])
 
 
-
-r_it_estimated <- array(0, dim = c(n, J, T))
-r_it_estimated[,,1] <- r_it[,1,n_sim]
-r_it_estimated[,,2] <- r_it[,2,n_sim]
-r_it_estimated[,,3] <- r_it[,3,n_sim]
-
-plot(r + alpha, r_it_estimated[,,] + alpha_ijt[,,,n_sim], xlab = "true (r + alpha)", ylab = "estimated (r + alpha)", main = "r + alpha")
-abline(0, 1, col = "red")
-
-
-
-
-for(t in 1:T){
-  
-  png(file = paste("C:/Users/SEC/Desktop/research/25-1/week2/mu_ij",t,".png", sep=""),
-      width = 6,
-      height = 5,
-      units = "in",
-      res = 1200)
-  
-  plot(r[,,t] + alpha[,,t], r_it_estimated[,,t] + alpha_ijt[,,t,n_sim], xlab = "true (r + alpha)", ylab = "estimated (r + alpha)", main = paste("r + alpha at time point", t))
-  abline(0, 1, col = "red")
-  
-  dev.off()
-  
-}
 
 
 # alpha0
 library(ComplexHeatmap)
 alpha0 ; alpha0_update[,,n_sim]
 
-rownames(alpha0) <- paste0("row",1:20)
-colnames(alpha0) <- paste0("column",1:30)
-rownames(alpha0_update[,,n_sim]) <- paste0("row",1:20)
-colnames(alpha0_update[,,n_sim]) <- paste0("column",1:30)
+rownames(alpha0) <- paste0("obs",1:20)
+colnames(alpha0) <- paste0("otu",1:30)
+rownames(alpha0_update[,,n_sim]) <- paste0("obs",1:20)
+colnames(alpha0_update[,,n_sim]) <- paste0("otu",1:30)
 
-ht1 <- Heatmap(alpha0, column_order = colnames(alpha0), row_order = rownames(alpha0),
-               , column_title = "alpha0")
+ht1 <- Heatmap(alpha0, column_order = colnames(alpha0), row_order = rownames(alpha0), row_title = "observation 1:20"
+               , column_title = "true alpha0")
 ht2 <- Heatmap(alpha0_update[,,n_sim], column_order = colnames(alpha0_update[,,n_sim]), row_order = rownames(alpha0_update[,,n_sim]),
-               , column_title = "estimated")
+               , column_title = "estimated alpha0")
 ht_list <- ht1 + ht2
-draw(ht_list, column_title = "alpha0")
+draw(ht_list, column_title = "comparing true and estimated alpha0")
 
 
 # latent variable (group member)
@@ -757,14 +734,18 @@ colnames(alpha0_grp_update[,,n_sim]) <- paste0("column",1:30)
 ht1 <- Heatmap(alpha0_grp, column_order = colnames(alpha0_grp), row_order = rownames(alpha0_grp),
                , column_title = "alpha0_group")
 ht2 <- Heatmap(alpha0_grp_update[,,n_sim], column_order = colnames(alpha0_grp_update[,,n_sim]), row_order = rownames(alpha0_grp_update[,,n_sim]),
-               , column_title = "estimated")
+               , column_title = "estimated alpha0_group")
 ht_list <- ht1 + ht2
-draw(ht_list, column_title = "alpha0_grp")
+draw(ht_list, column_title = "comparing true and estimated alpha0_grp")
+
 
 # weight
 round(w, digits = 2) ; round(w_update[n_sim,], digits = 2)
-pie(round(w, digits = 2), main= "true weight")
-pie(round(w_update[n_sim,], digits = 2), main= "estimated weight")
+
+# 별로 좋은 visualization이 아님
+# par(mfrow=c(1,2))
+# pie(round(w[1:7], digits = 2), labels = round(w[1:7], digits = 2), main= "true weight")
+# pie(round(w_update[n_sim,1:7], digits = 2), labels = round(w_update[n_sim,1:7], digits = 2), main= "estimated weight")
 
 
 # mu_j0
@@ -774,20 +755,52 @@ mu0_j ; mu_j0_update[n_sim,]
 # mu_jl
 mu_jl ; mu_jl_update[,,n_sim]
 
-rownames(mu_jl) <- paste0("row",1:30)
-colnames(mu_jl) <- paste0("column",1:30)
-rownames(mu_jl_update[,,n_sim]) <- paste0("row",1:30)
-colnames(mu_jl_update[,,n_sim]) <- paste0("column",1:30)
+rownames(mu_jl) <- paste0("cluster",1:30)
+colnames(mu_jl) <- paste0("otu",1:30)
+rownames(mu_jl_update[,,n_sim]) <- paste0("cluster",1:30)
+colnames(mu_jl_update[,,n_sim]) <- paste0("otu",1:30)
 
-ht1 <- Heatmap(mu_jl, column_order = colnames(mu_jl), row_order = rownames(mu_jl),
-               , column_title = "mu_jl")
+ht1 <- Heatmap(mu_jl, column_order = colnames(mu_jl), row_order = rownames(mu_jl), row_title = "cluster 1:30",
+               , column_title = "true mu_jl")
 ht2 <- Heatmap(mu_jl_update[,,n_sim], column_order = colnames(mu_jl_update[,,n_sim]), row_order = rownames(mu_jl_update[,,n_sim]),
                , column_title = "estimated mu_jl")
 ht_list <- ht1 + ht2
-draw(ht_list, column_title = "mu_jl")
+draw(ht_list, column_title = "comparing true and estimated mu_jl")
 
 
-# phi check
+
+# r + alpha check ##############################################################
+r_it_estimated <- array(0, dim = c(n, J, T))
+r_it_estimated[,,1] <- r_it[,1,n_sim]
+r_it_estimated[,,2] <- r_it[,2,n_sim]
+r_it_estimated[,,3] <- r_it[,3,n_sim]
+
+par(mfrow = c(1,1))
+plot(r + alpha, r_it_estimated[,,] + alpha_ijt[,,,n_sim], xlab = "true (r + alpha)", ylab = "estimated (r + alpha)", main = "r + alpha")
+abline(0, 1, col = "red")
+
+
+# for(t in 1:T){
+#   
+#   png(file = paste("C:/Users/SEC/Desktop/research/25-1/week8/mu_ij",t,".png", sep=""),
+#       width = 6,
+#       height = 5,
+#       units = "in",
+#       res = 1200)
+#   
+#   plot(r[,,t] + alpha[,,t], r_it_estimated[,,t] + alpha_ijt[,,t,n_sim], xlab = "true (r + alpha)", ylab = "estimated (r + alpha)", main = paste("r + alpha at time point", t))
+#   abline(0, 1, col = "red")
+#   
+#   dev.off()
+#   
+# }
+
+graphics.off()
+
+
+
+
+# phi check ####################################################################
 phi1[n_sim] ; phi_g1
 phi2[n_sim] ; phi_g2
 ts.plot(phi1)
@@ -799,18 +812,18 @@ lambda_j[,,n_sim]
 t(Lambda)
 ts.plot(lambda_j[1,1,])
 
-# # if (!require("BiocManager", quietly = TRUE))
-# #   install.packages("BiocManager")
-# #
-# # BiocManager::install("ComplexHeatmap")
+
+# if (!require("BiocManager", quietly = TRUE))
+#   install.packages("BiocManager")
 # 
+# BiocManager::install("ComplexHeatmap")
 # browseVignettes("ComplexHeatmap")
-library(ComplexHeatmap)
+
 
 # Identifiability issue 때문에 곱 자체를 비교해야함.. 그건 일정하기 때문.. why?
 # lambda'lambda 비교
-estimated <- t(lambda_j[,,n_sim])%*%lambda_j[,,n_sim]
 true <- Lambda %*% t(Lambda)
+estimated <- t(lambda_j[,,n_sim])%*%lambda_j[,,n_sim]
 
 compare_mat <- true
 compare_mat[upper.tri(compare_mat)] <- estimated[upper.tri(estimated)]
@@ -825,35 +838,40 @@ Heatmap(compare_mat, column_order = colnames(compare_mat), row_order = rownames(
 
 # lambda*eta 비교 ##############################################################
 # (i, j) : i번째 otu에의 j번째 observation에의 factor의 영향 (time = 1)
+true_f <- Lambda%*%eta[,,1]
 estimated_f <- t(lambda_j[,,n_sim])%*%eta_it[,,1,n_sim]
+
 rownames(estimated_f) <- paste0("row",1:30)
 colnames(estimated_f) <- paste0("column",1:20)
-true_f <- Lambda%*%eta[,,1]
+
 rownames(true_f) <- paste0("row",1:30)
 colnames(true_f) <- paste0("column",1:20)
-ht1 <- Heatmap(estimated_f, column_order = colnames(estimated_f), row_order = rownames(estimated_f),
-               row_title = "OTU", column_title = "Estimated")
-ht2 <- Heatmap(true_f, column_order = colnames(true_f), row_order = rownames(true_f),
+
+ht1 <- Heatmap(true_f, column_order = colnames(true_f), row_order = rownames(true_f),
                row_title = "OTU", column_title = "True")
+ht2 <- Heatmap(estimated_f, column_order = colnames(estimated_f), row_order = rownames(estimated_f),
+               row_title = "OTU", column_title = "Estimated")
 ht_list <- ht1 + ht2
-draw(ht_list, column_title = "Lambda*eta")
+draw(ht_list, column_title = "Lambda'eta")
+
 
 # eta check ####################################################################
 eta_it[,,1,n_sim]
 eta[,,1]
 
-
-
-estimated_f <- eta_it[,,1,n_sim]
-rownames(estimated_f) <- paste0("row",1:3)
-colnames(estimated_f) <- paste0("column",1:20)
 true_f <- eta[,,1]
+estimated_f <- eta_it[,,1,n_sim]
+
 rownames(true_f) <- paste0("row",1:3)
 colnames(true_f) <- paste0("column",1:20)
+
+rownames(estimated_f) <- paste0("row",1:3)
+colnames(estimated_f) <- paste0("column",1:20)
+
 ht1 <- Heatmap(estimated_f, column_order = colnames(estimated_f), row_order = rownames(estimated_f),
-               row_title = "OTU", column_title = "Estimated")
+               row_title = "num of factor", column_title = "Estimated")
 ht2 <- Heatmap(true_f, column_order = colnames(true_f), row_order = rownames(true_f),
-               row_title = "OTU", column_title = "True")
+               row_title = "num of factor", column_title = "True")
 ht_list <- ht1 + ht2
 draw(ht_list, column_title = "Eta")
 
@@ -886,28 +904,26 @@ num0t3 <- sum(floor(exp(r_it_estimated[,,3] + alpha_ijt[,,3,n_sim])) == 0)
 
 cbind("time 1" = num0t1 , "time 2" =  num0t2 , "time 3" = num0t3)
 
+# number of 0s in true data
 true0t1 <- sum(data[,,1] == 0)
 true0t2 <- sum(data[,,2] == 0)
 true0t3 <- sum(data[,,3] == 0)
 
 cbind("time 1" = true0t1 , "time 2" =  true0t2 , "time 3" = true0t3)
 
-
+# ratio of 0s in simulated data 
 num0ratio1 <- sum(floor(exp(r_it_estimated[,,1] + alpha_ijt[,,1,n_sim])) == 0)/length(data[,,1])
 num0ratio2 <- sum(floor(exp(r_it_estimated[,,2] + alpha_ijt[,,2,n_sim])) == 0)/length(data[,,2])
 num0ratio3 <- sum(floor(exp(r_it_estimated[,,3] + alpha_ijt[,,3,n_sim])) == 0)/length(data[,,3])
 
 cbind("time 1" = num0ratio1 , "time 2" =  num0ratio2 , "time 3" = num0ratio3)
 
-
+# ratio of 0s in true data 
 truenum0ratio1 <- sum(data[,,1] == 0)/length(data[,,1])
 truenum0ratio2 <- sum(data[,,2] == 0)/length(data[,,2])
 truenum0ratio3 <- sum(data[,,3] == 0)/length(data[,,3])
 
 cbind("time 1" = truenum0ratio1 , "time 2" =  truenum0ratio2 , "time 3" = truenum0ratio3)
-
-
-
 
 
 # covariance between time point check ##########################################
@@ -922,6 +938,7 @@ for(i in 1:n_sim){
 mean_cov/n_sim
 Cov_Y_est <- (1/(1-mean(rho_est[])^2))*(mean_cov/n_sim) + mean(sigma_t[])*diag(J)
 
+library(gridtext)
 
 rownames(Cov_Y_tr) <- paste0("row",1:30)
 colnames(Cov_Y_tr) <- paste0("column",1:30)
@@ -936,7 +953,7 @@ rownames(compare_mat) <- paste0("row", 1:30)
 colnames(compare_mat) <- paste0("column", 1:30)
 
 Heatmap(compare_mat, column_order = colnames(compare_mat), row_order = rownames(compare_mat),
-        row_title = "lower : true", column_title = "upper : estimated", name = "Cov(Y_it)") # diagonal part is true value, lower - true, upper - posterior estimate
+        row_title = "lower : true", column_title = gt_render("Cov(Y_it) <br> upper : estimated"), name = "mat") # diagonal part is true value, lower - true, upper - posterior estimate
 
 
 
@@ -967,5 +984,5 @@ rownames(compare_mat) <- paste0("row", 1:30)
 colnames(compare_mat) <- paste0("column", 1:30)
 
 Heatmap(compare_mat, column_order = colnames(compare_mat), row_order = rownames(compare_mat),
-        row_title = "lower : true", column_title = "upper : estimated", name = "Cov(Y_it, Y_i(t+1))") # diagonal part is true value, lower - true, upper - posterior estimate
+        row_title = "lower : true", column_title = gt_render("Cov(Y_it, Y_i(t+1)) <br> upper : estimated"), name = "mat") # diagonal part is true value, lower - true, upper - posterior estimate
 

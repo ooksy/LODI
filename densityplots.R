@@ -165,7 +165,7 @@ data <- y_count
 
 alpha0
 grp_num <- unique(as.vector(alpha0_grp))
-
+grp_num <- sort(grp_num)
 
 
 # make array to matrix
@@ -173,26 +173,76 @@ alpha1 <- alpha[,,1]
 alpha2 <- alpha[,,2]
 alpha3 <- alpha[,,3]
 
-par(mfrow = c(1,4))
-for(i in 1:length(grp_num)){
-  plot(density(alpha0[alpha0_grp == grp_num[i]]), main = paste("grp",i,", time 0"))
-  plot(density(alpha1[alpha0_grp == grp_num[i]]), main = paste("grp",i,", time 1"))
-  plot(density(alpha2[alpha0_grp == grp_num[i]]), main = paste("grp",i,", time 2"))
-  plot(density(alpha3[alpha0_grp == grp_num[i]]), main = paste("grp",i,", time 3"))
+# creating image
+par(mar = c(1,1,1,1))
+
+otu_sam <- sample(1:30, 5)
+for(j in otu_sam){
+  png(file = paste("C:/Users/SEC/Desktop/research/25-1/week8/density",j,".png", sep=""),
+      width = 10,
+      height = 8,
+      units = "in",
+      res = 1200)
+  
+  par(mfrow = c(1,4))
+  plot(density(alpha0[,j]), main = paste("OTU",j,", time 0"))
+  plot(density(alpha1[,j]), main = paste("OTU",j,", time 1"))
+  plot(density(alpha2[,j]), main = paste("OTU",j,", time 2"))
+  plot(density(alpha3[,j]), main = paste("OTU",j,", time 3"))
+
+  
+  dev.off()
 }
 
-# group 1 : density plot along the time
-par(mfrow = c(1,4))
-  plot(density(alpha0[1:10,]), main = paste("grp",1,", time 0"))
-  plot(density(alpha1[1:10,]), main = paste("grp",1,", time 1"))
-  plot(density(alpha2[1:10,]), main = paste("grp",1,", time 2"))
-  plot(density(alpha3[1:10,]), main = paste("grp",1,", time 3"))
+# # genotype 1 : density plot along the time
+# 
+# png(file = paste("C:/Users/SEC/Desktop/research/25-1/week8/sim_density/genotype",1,".png", sep=""),
+#     width = 10,
+#     height = 8,
+#     units = "in",
+#     res = 1200)
+# par(mfrow = c(1,4))
+#   plot(density(alpha0[1:10,]), main = paste("genotype",1,", time 0"))
+#   plot(density(alpha1[1:10,]), main = paste("genotype",1,", time 1"))
+#   plot(density(alpha2[1:10,]), main = paste("genotype",1,", time 2"))
+#   plot(density(alpha3[1:10,]), main = paste("genotype",1,", time 3"))
+# dev.off()
+# 
+# # genotype 2 : density plot along the time
+# 
+# png(file = paste("C:/Users/SEC/Desktop/research/25-1/week8/sim_density/genotype",2,".png", sep=""),
+#     width = 10,
+#     height = 8,
+#     units = "in",
+#     res = 1200)
+# par(mfrow = c(1,4))
+#   plot(density(alpha0[11:20,]), main = paste("genotype",2,", time 0"))
+#   plot(density(alpha1[11:20,]), main = paste("genotype",2,", time 1"))
+#   plot(density(alpha2[11:20,]), main = paste("genotype",2,", time 2"))
+#   plot(density(alpha3[11:20,]), main = paste("genotype",2,", time 3"))
+# dev.off()
 
-# group 2 : density plot along the time
-par(mfrow = c(1,4))
-  plot(density(alpha0[11:20,]), main = paste("grp",2,", time 0"))
-  plot(density(alpha1[11:20,]), main = paste("grp",2,", time 1"))
-  plot(density(alpha2[11:20,]), main = paste("grp",2,", time 2"))
-  plot(density(alpha3[11:20,]), main = paste("grp",2,", time 3"))
+y1 <- y_count[,,1]
+y2 <- y_count[,,2]
+y3 <- y_count[,,3]
+
+
+for(i in 1:length(grp_num)){
+  
+  png(file = paste("C:/Users/SEC/Desktop/research/25-1/week8/sim_density/y_grp",grp_num[i],".png", sep=""),
+      width = 10,
+      height = 8,
+      units = "in",
+      res = 1200)
+  
+  par(mfrow = c(1,3))
+  plot(density(y1[alpha0_grp == grp_num[i]]), main = paste("grp",i,", time 1"))
+  plot(density(y2[alpha0_grp == grp_num[i]]), main = paste("grp",i,", time 2"))
+  plot(density(y3[alpha0_grp == grp_num[i]]), main = paste("grp",i,", time 3"))
+  
+  
+  dev.off()
+  
+}
   
 
