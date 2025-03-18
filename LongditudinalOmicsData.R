@@ -215,7 +215,7 @@ data <- y_count
 
 # gibbs sampling ###############################################################
 # parameter setting
-n_sim <- 1000
+n_sim <- 5000
 mu_updated <- array(0, dim=c(n, J, T))
 post_latent <- array(0, dim=c(n, J, T, n_sim))
 #post_latent[,,,1] <- post_latent0
