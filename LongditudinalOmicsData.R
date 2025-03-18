@@ -1,6 +1,9 @@
 ################################################################################
 # packages #####################################################################
 library(mvtnorm)
+library(ComplexHeatmap)
+library(gridtext)
+
 
 # Data generation ##############################################################
 set.seed(10000)
@@ -215,7 +218,7 @@ data <- y_count
 
 # gibbs sampling ###############################################################
 # parameter setting
-n_sim <- 5000
+n_sim <- 1000
 mu_updated <- array(0, dim=c(n, J, T))
 post_latent <- array(0, dim=c(n, J, T, n_sim))
 #post_latent[,,,1] <- post_latent0
@@ -584,13 +587,13 @@ for(s in 2:n_sim){
   # rho - beta(60, 30) prior - MH algorithm ####################################
   # proposal distribution - random walk
   rho_old <- rho_est[s-1]
-  err <- 0.15 # jumping rule
+  err <- 0.1 # jumping rule
   rho_new <- rnorm(1, mean = rho_old, sd = err)
   ifelse(rho_new >= 1,rho_new <- 0.99, ifelse(rho_new < 0, rho_new <- 0, rho_new <- rho_new)) 
 
   # numerator - new sample
   # prior : beta(,)
-  beta_a <- 60 ; beta_b <- 30
+  beta_a <- 30 ; beta_b <- 15
   pr_new <- dbeta(rho_new, shape1 = beta_a, shape2 = beta_b, log = T)
   lik_new <- 0
   for(i in 1:n){
@@ -646,8 +649,9 @@ for(s in 2:n_sim){
 
 }
 
-ts.plot(rho_est) 
-mean(rho_est)
+
+
+
 
 # 결과 : posterior mean/last iteration과 true값을 비교 #########################
 post_latent
@@ -933,7 +937,8 @@ ts.plot(eta_it[2,1,1,])
 # rho check ####################################################################
 rho
 rho_est[n_sim]
-mean(rho_est[])
+ts.plot(rho_est) 
+mean(rho_est)
 
 # sigma_t check ################################################################
 cbind("post mean" = mean(sigma_t), "last value" = sigma_t[n_sim], "true value" = sigma_sq)
@@ -978,16 +983,8 @@ cbind("time 1" = truenum0ratio1 , "time 2" =  truenum0ratio2 , "time 3" = truenu
 # covariance between time point check ##########################################
 # Cov(Y_it) 
 Cov_Y_tr <- (1/(1-rho^2))*Lambda%*%t(Lambda) + sigma_sq*diag(J)
-Cov_Y_est <- (1/(1-rho_est[n_sim]^2))*t(lambda_j[,,n_sim])%*%lambda_j[,,n_sim] + sigma_t[n_sim]*diag(J)
+Cov_Y_est <- (1/(1-mean(rho_est)^2))*t(lambda_j[,,n_sim])%*%lambda_j[,,n_sim] + sigma_t[n_sim]*diag(J)
 
-mean_cov <- matrix(0, J, J)
-for(i in 1:n_sim){
-  mean_cov <- mean_cov + t(lambda_j[,,i])%*%lambda_j[,,i]
-}
-mean_cov/n_sim
-Cov_Y_est <- (1/(1-mean(rho_est[])^2))*(mean_cov/n_sim) + mean(sigma_t[])*diag(J)
-
-library(gridtext)
 
 rownames(Cov_Y_tr) <- paste0("row",1:30)
 colnames(Cov_Y_tr) <- paste0("column",1:30)
@@ -1008,16 +1005,7 @@ Heatmap(compare_mat, column_order = colnames(compare_mat), row_order = rownames(
 
 # time point1 and time point2
 Cov_Y_tr <- (rho/(1-rho^2))*Lambda%*%t(Lambda)
-Cov_Y_est <- (rho_est[n_sim]/(1-rho_est[n_sim]^2))*t(lambda_j[,,n_sim])%*%lambda_j[,,n_sim]
-
-mean_cov <- matrix(0, J, J)
-for(i in 1:n_sim){
-  mean_cov <- mean_cov + t(lambda_j[,,i])%*%lambda_j[,,i]
-}
-mean_cov/n_sim
-
-Cov_Y_est <- (mean(rho_est[])/(1-mean(rho_est[])^2))*(mean_cov/n_sim)
-
+Cov_Y_est <- (mean(rho_est)/(1-mean(rho_est)^2))*t(lambda_j[,,n_sim])%*%lambda_j[,,n_sim]
 
 
 rownames(Cov_Y_tr) <- paste0("row",1:30)
