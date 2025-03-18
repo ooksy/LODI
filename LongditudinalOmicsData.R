@@ -1,4 +1,7 @@
 ################################################################################
+# packages #####################################################################
+library(mvtnorm)
+
 # Data generation ##############################################################
 set.seed(10000)
 g1 <- 1:10
@@ -212,7 +215,7 @@ data <- y_count
 
 # gibbs sampling ###############################################################
 # parameter setting
-n_sim <- 5000
+n_sim <- 1000
 mu_updated <- array(0, dim=c(n, J, T))
 post_latent <- array(0, dim=c(n, J, T, n_sim))
 #post_latent[,,,1] <- post_latent0
@@ -246,11 +249,9 @@ C_mat[,,1] <- diag(K)
 a_vec <- matrix(0, nrow = T, ncol = K)
 R_mat <- array(0, dim = c(K, K, T))
 rho_est <- rep(0, n_sim)
-rho_est[1] <- 1 # initial value
+rho_est[1] <- rbeta(1, shape1 = 1, shape2 = 0.5) # initial value
 sig_phi <- 1
 sig_w <- 1
-
-
 
 
 for(s in 2:n_sim){
@@ -270,7 +271,7 @@ for(s in 2:n_sim){
   # rho_est[s-1] <- rho
   # sigma_t[s-1] <- sigma_sq
   
-  #sampling posterior latent variable ########################################
+  # sampling posterior latent variable ########################################
   for(i in 1:n){
     for(j in 1:J){
       for(t in 1:T){
@@ -346,7 +347,7 @@ for(s in 2:n_sim){
       alpha0_grp_update[i,j,s] <- sample(x=1:L, size = 1, replace = T, prob = grp_prob/sum(grp_prob))
     }
   }
-  
+
   # update alpha0 | group
   # time point T update
   for(i in 1:n){
@@ -406,7 +407,7 @@ for(s in 2:n_sim){
 
     }
   }
-  
+
   # update weight
   v <- c()
 
@@ -419,8 +420,8 @@ for(s in 2:n_sim){
     w_update[s,l] <- v[l]*prod(1-v[1:(l-1)])
   }
   if(sum(w_update[s,1:(L-1)]) >= 1) w_update[s,L] <- 0 else w_update[s,L] <- 1-sum(w_update[s,1:(L-1)])
- 
-  
+
+
   # update mu_jl
   for(j in 1:J){
     for(l in 1:L){
@@ -431,7 +432,7 @@ for(s in 2:n_sim){
       mu_jl_update[l,j,s] <- rnorm(1, mean = mu_mean, sd = sqrt(mu_sigma))
     }
   }
-  
+
   # new update mu_j0 and mu_jl
   for(j in 1:J){
     mu0_sigma <- (1/(sigma0^2)) + (L/sigma_base^2)
@@ -557,28 +558,76 @@ for(s in 2:n_sim){
   }
 
 
-  # rho update (variable name is rho_est) ####################################
-  rho_mean <- 0
-  rho_var <- 0
+  # rho update - gibbs sampling (overestimate) #################################
+  # rho_mean <- 0
+  # rho_var <- 0
+  # 
+  # for(i in 1:n){
+  #   for(t in 2:T){
+  #     rho_var <- rho_var + as.numeric((t(eta_it[,i,t-1,s]) %*% eta_it[,i,t-1,s]))
+  #   }
+  # }
+  # 
+  # for(i in 1:n){
+  #   for(t in 2:T){
+  #     rho_mean <- rho_mean + as.numeric((t(eta_it[,i,t-1,s]) %*% eta_it[,i,t,s]))
+  #   }
+  # }
+  # 
+  # var_rho <- 1/rho_var
+  # mean_rho <- rho_mean * var_rho
+  # 
+  # u2 <- runif(1, pnorm(0, mean = mean_rho, sd = sqrt(var_rho)), pnorm(1, mean = mean_rho, sd = sqrt(var_rho)))
+  # 
+  # rho_est[s] <- sqrt(var_rho)*qnorm(u2, 0, 1) + mean_rho
 
+  # rho - beta(60, 30) prior - MH algorithm ####################################
+  # proposal distribution - random walk
+  rho_old <- rho_est[s-1]
+  err <- 0.15 # jumping rule
+  rho_new <- rnorm(1, mean = rho_old, sd = err)
+  ifelse(rho_new >= 1,rho_new <- 0.99, ifelse(rho_new < 0, rho_new <- 0, rho_new <- rho_new)) 
+
+  # numerator - new sample
+  # prior : beta(,)
+  beta_a <- 60 ; beta_b <- 30
+  pr_new <- dbeta(rho_new, shape1 = beta_a, shape2 = beta_b, log = T)
+  lik_new <- 0
   for(i in 1:n){
     for(t in 2:T){
-      rho_var <- rho_var + as.numeric((t(eta_it[,i,t-1,s]) %*% eta_it[,i,t-1,s]))
+      lik_new <- lik_new + dmvnorm(eta_it[,i,t,s] - rho_new*eta_it[,i,t-1,s], mean = rep(0, 3), sigma = diag(3), log = T) 
     }
   }
-
+  proposal_new <- dnorm(rho_new, mean = rho_old, sd = err, log = T)
+  
+  num <- pr_new + lik_new + proposal_new
+  
+  
+  # denominator - old sample
+  pr_old <- dbeta(rho_old, shape1 = beta_a, shape2 = beta_b, log = T)
+  lik_old <- 0
   for(i in 1:n){
     for(t in 2:T){
-      rho_mean <- rho_mean + as.numeric((t(eta_it[,i,t-1,s]) %*% eta_it[,i,t,s]))
+      lik_old <- lik_old + dmvnorm(eta_it[,i,t,s] - rho_old*eta_it[,i,t-1,s], mean = rep(0, 3), sigma = diag(3), log = T) 
     }
   }
+  proposal_old <- dnorm(rho_old, mean = rho_new, sd = err, log = T)
 
-  var_rho <- 1/rho_var
-  mean_rho <- rho_mean * var_rho
-
-  u2 <- runif(1, pnorm(0, mean = mean_rho, sd = sqrt(var_rho)), pnorm(1, mean = mean_rho, sd = sqrt(var_rho)))
-
-  rho_est[s] <- sqrt(var_rho)*qnorm(u2, 0, 1) + mean_rho
+  denom <- pr_old + lik_old + proposal_old
+  
+  # log ratio
+  log_ratio <- num - denom
+  
+  
+  # accept-reject
+  u <- runif(1, min = 0, max = 1)
+  log_ratio <- min(0, log_ratio)
+  
+  if(log(u) <= log_ratio){
+    rho_est[s] <- rho_new
+  } else { 
+    rho_est[s] <- rho_old 
+  }
 
 
 
@@ -597,8 +646,8 @@ for(s in 2:n_sim){
 
 }
 
-
-
+ts.plot(rho_est) 
+mean(rho_est)
 
 # 결과 : posterior mean/last iteration과 true값을 비교 #########################
 post_latent
