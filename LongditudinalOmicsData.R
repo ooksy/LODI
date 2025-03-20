@@ -626,7 +626,7 @@ for(s in 2:n_sim){
   u <- runif(1, min = 0, max = 1)
   log_ratio <- min(0, log_ratio)
   
-  if(log(u) <= log_ratio){
+  if(log(u) < log_ratio){
     rho_est[s] <- rho_new
   } else { 
     rho_est[s] <- rho_old 
@@ -819,6 +819,58 @@ ht2 <- Heatmap(mu_jl_update[,,n_sim], column_order = colnames(mu_jl_update[,,n_s
                , column_title = "estimated mu_jl")
 ht_list <- ht1 + ht2
 draw(ht_list, column_title = "comparing true and estimated mu_jl")
+
+
+
+# alpha over time ##############################################################
+
+alpha0
+# make array to matrix
+alpha1 <- alpha[,,1]
+alpha2 <- alpha[,,2]
+alpha3 <- alpha[,,3]
+
+# creating image
+par(mar = c(1,1,1,1))
+
+otu_sam <- sample(1:30, 5)
+
+
+for(j in otu_sam){
+    png(file = paste("C:/Users/SEC/Desktop/research/25-1/week9/density",j,".png", sep=""),
+        width = 10,
+        height = 8,
+        units = "in",
+        res = 1200)
+
+    par(mfrow = c(1,4))
+    max_alpha <- max(alpha0[,j], alpha0_update[,j,n_sim])
+    min_alpha <- min(alpha0[,j], alpha0_update[,j,n_sim])
+    hist(alpha0[,j], breaks = 20, probability = T, main = paste("OTU",j,", time 0"), xlim = c(min_alpha, max_alpha))
+    lines(density(alpha0_update[,j,n_sim]), col = "red")
+    legend("topright", legend = c("hist = true", "density = estimated"), col = c("grey", "red"), lty = 1)
+    
+    max_alpha <- max(alpha1[,j], alpha_ijt[,j,1,n_sim])
+    min_alpha <- min(alpha1[,j], alpha_ijt[,j,1,n_sim])
+    hist(alpha1[,j], breaks = 20, probability = T, main = paste("OTU",j,", time 1"), xlim = c(min_alpha, max_alpha))
+    lines(density(alpha_ijt[,j,1,n_sim]), col = "red")
+    legend("topright", legend = c("hist = true", "density = estimated"), col = c("grey", "red"), lty = 1)
+    
+    max_alpha <- max(alpha2[,j], alpha_ijt[,j,2,n_sim])
+    min_alpha <- min(alpha2[,j], alpha_ijt[,j,2,n_sim])
+    hist(alpha2[,j], breaks = 20, probability = T, main = paste("OTU",j,", time 2"), xlim = c(min_alpha, max_alpha))
+    lines(density(alpha_ijt[,j,2,n_sim]), col = "red")
+    legend("topright", legend = c("hist = true", "density = estimated"), col = c("grey", "red"), lty = 1)
+    
+    max_alpha <- max(alpha3[,j], alpha_ijt[,j,3,n_sim])
+    min_alpha <- min(alpha3[,j], alpha_ijt[,j,3,n_sim])
+    hist(alpha3[,j], breaks = 20, probability = T, main = paste("OTU",j,", time 3"), xlim = c(min_alpha, max_alpha))
+    lines(density(alpha_ijt[,j,3,n_sim]), col = "red")
+    legend("topright", legend = c("hist = true", "density = estimated"), col = c("grey", "red"), lty = 1)
+    
+    dev.off()
+}
+
 
 
 
