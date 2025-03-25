@@ -285,7 +285,7 @@ for(s in 2:n_sim){
           #post_latent[i,j,t,s] <- sqrt(sigma_t[s-1])*qnorm(u0, 0, 1) + mu_updated[i,j,t]
         } else {
           u <- runif(1, min = pnorm((log(data[i,j,t])-mu_updated[i,j,t])/sqrt(sigma_t[s-1]), 0, 1), max = pnorm((log(data[i,j,t]+1)-mu_updated[i,j,t])/sqrt(sigma_t[s-1]), 0, 1))
-          if(u == 1){u <- 1-1e-10}
+          ifelse(u == 0, u <- 1e-10, ifelse(u == 1, u<- 1-1e-10, u <- u))
           post_latent[i,j,t,s] <- sqrt(sigma_t[s-1])*qnorm(u, 0, 1) + mu_updated[i,j,t]
         }
       }
@@ -588,8 +588,10 @@ for(s in 2:n_sim){
   # proposal distribution - random walk
   rho_old <- rho_est[s-1]
   err <- 0.1 # jumping rule
-  rho_new <- rnorm(1, mean = rho_old, sd = err)
-  ifelse(rho_new >= 1,rho_new <- 0.99, ifelse(rho_new < 0, rho_new <- 0, rho_new <- rho_new)) 
+  rho_new <- runif(1, min = pnorm(0, mean = rho_old, sd = err), max = pnorm(1, mean = rho_old, sd = err))
+  # p=0/p=1 보정 
+  ifelse(rho_new == 0, rho_new <- 1e-10, ifelse(rho_new==1, rho_new <- 1-1e-10, rho_new <- rho_new))
+  rho_new <- qnorm(rho_new, mean = rho_old, sd = err)
 
   # numerator - new sample
   # prior : beta(,)
