@@ -54,14 +54,16 @@ pie(w, main = "weight probability")
 
 # mu_jl
 # prior of mu_jl is N(mu0,sigma0)
-mu0 <- 4 # mean
-sigma0 <- 2 # standard deviation
+mu0 <- 0 # mean
+sigma0 <- 5 # standard deviation
+sigmaj0 <- 2
+sigmajl <- 1
 mu0_j <- rnorm(J, mean = mu0, sd = sigma0)
 
 mu0_j
 
 for(j in 1:J){
-  mu_jl[,j] <- rnorm(L, mean = mu0_j[j], sd = sigma0) # row is OTU, column is truncated infinite mean
+  mu_jl[,j] <- rnorm(L, mean = mu0_j[j], sd = sigmaj0) # row is OTU, column is truncated infinite mean
 }
 
 # alpha0_grp
@@ -70,11 +72,10 @@ for(j in 1:J){
 }
 
 # alpha0
-sigma_base = 1
 for(i in 1:n){
   for(j in 1:J){
     group_index <- alpha0_grp[i,j]
-    alpha0[i,j] <- rnorm(1, mean = mu_jl[group_index,j], sd = sigma_base)
+    alpha0[i,j] <- rnorm(1, mean = mu_jl[group_index,j], sd = sigmajl)
   }
 }
 
@@ -426,30 +427,30 @@ for(s in 2:n_sim){
   if(sum(w_update[s,1:(L-1)]) >= 1) w_update[s,L] <- 0 else w_update[s,L] <- 1-sum(w_update[s,1:(L-1)])
 
 
-  # update mu_jl
-  for(j in 1:J){
-    for(l in 1:L){
-      mu_sigma <- (1/(sigma0^2) + sum(alpha0_grp_update[,j,s]==l)/(sigma_base^2))
-      mu_sigma <- 1/mu_sigma
-      alpha_current <- alpha0_update[,,s]
-      mu_mean <- mu_sigma*(mu0/(sigma0^2) + sum(alpha_current[alpha0_grp_update[,j,s]==l])/(sigma_base^2))
-      mu_jl_update[l,j,s] <- rnorm(1, mean = mu_mean, sd = sqrt(mu_sigma))
-    }
-  }
+  # # update mu_jl
+  # for(j in 1:J){
+  #   for(l in 1:L){
+  #     mu_sigma <- (1/(sigma0^2) + sum(alpha0_grp_update[,j,s]==l)/(sigma_base^2))
+  #     mu_sigma <- 1/mu_sigma
+  #     alpha_current <- alpha0_update[,,s]
+  #     mu_mean <- mu_sigma*(mu0/(sigma0^2) + sum(alpha_current[alpha0_grp_update[,j,s]==l])/(sigma_base^2))
+  #     mu_jl_update[l,j,s] <- rnorm(1, mean = mu_mean, sd = sqrt(mu_sigma))
+  #   }
+  # }
 
   # new update mu_j0 and mu_jl
   for(j in 1:J){
-    mu0_sigma <- (1/(sigma0^2)) + (L/sigma_base^2)
+    mu0_sigma <- (1/(sigma0^2)) + (L/sigmaj0^2)
     mu0_sigma <- 1/mu0_sigma
-    mu0_mean <- (mu0/(sigma0^2)) + (sum(mu_jl_update[,j,s-1])/sigma_base^2)
+    mu0_mean <- (mu0/(sigma0^2)) + (sum(mu_jl_update[,j,s-1])/sigmaj0^2)
     mu0_mean <- mu0_sigma*mu0_mean
 
     mu_j0_update[s,j] <- rnorm(1, mean = mu0_mean, sd = sqrt(mu0_sigma))
 
     for(l in 1:L){
-      mu_jl_sigma <- (1/(sigma_base^2)) + (sum(alpha0_grp_update[,j,s]==l)/(sigma_base^2))
+      mu_jl_sigma <- (1/(sigmaj0^2)) + (sum(alpha0_grp_update[,j,s]==l)/(sigmajl^2))
       mu_jl_sigma <- 1/mu_jl_sigma
-      mu_jl_mean <- (mu_j0_update[s,j]/(sigma_base^2)) + (sum(alpha0_update[alpha0_grp_update[,j,s]==l,j,s])/(sigma_base^2))
+      mu_jl_mean <- (mu_j0_update[s,j]/(sigmaj0^2)) + (sum(alpha0_update[alpha0_grp_update[,j,s]==l,j,s])/(sigmajl^2))
       mu_jl_mean <- mu_jl_sigma*mu_jl_mean
 
       mu_jl_update[l,j,s] <- rnorm(1, mean = mu_jl_mean, sd = sqrt(mu_jl_sigma))
@@ -825,15 +826,27 @@ draw(ht_list, column_title = "comparing true and estimated mu_jl")
 
 # alpha over time ##############################################################
 
-alpha0
+par(mfrow = c(1,4))
+
 # make array to matrix
+alpha0
 alpha1 <- alpha[,,1]
 alpha2 <- alpha[,,2]
 alpha3 <- alpha[,,3]
+table(alpha0_grp)
+
+
+# whole samples
+par(mfrow = c(1,4))
+hist(alpha0, prob = T); lines(density(alpha0_update[,,n_sim]), col = "red")
+hist(alpha1, prob = T); lines(density(alpha_ijt[,,1,n_sim]), col = "red")
+hist(alpha2, prob = T); lines(density(alpha_ijt[,,2,n_sim]), col = "red")
+hist(alpha3, prob = T); lines(density(alpha_ijt[,,3,n_sim]), col = "red")
+# alpha0 group 제대로 추정을 못하는 모습 X
+# alpha group 시간이 갈수록 좀 불명확해지는 모습
 
 # creating image
 par(mar = c(1,1,1,1))
-
 otu_sam <- sample(1:30, 5)
 
 

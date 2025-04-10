@@ -12,7 +12,7 @@ g1 <- 1:10
 g2 <- 11:20
 n <- max(g2)
 J <- 30
-T <- 10
+T <- 3
 y <- r <- alpha <- factor <- error <- array(0, dim=c(n, J, T))
 
 
@@ -36,8 +36,8 @@ r
 # matrices and vectors
 mu0 <- 0 # prior mean of mu_j0
 sigma0 <- 5 # prior standard deviation of mu_jl
-sigmaj0 <- 2 # prior standard deviation of mu_j0
-sigmajl <- 1 # prior standard deviation of mu_jl
+sigmaj0 <- 5 # prior standard deviation of mu_j0
+sigmajl <- 5 # prior standard deviation of mu_jl
 c <- 1
 L <- 30
 sigma_base <- 1
@@ -629,14 +629,6 @@ plot(post_latent[,,3,n_sim], log(data[,,3]+0.01))
 # latent variable의 log값이 -5에 가까울 때(아마 데이터값이 0인듯), 실제 데이터의 로그값은 -5에서 10까지 따름..
 # log 데이터 값이 -5에서 10인데 latent variable이 -5라는 것은... posterior가 잘못 derive된 것은 아닌지..
 
-post_mean <- numeric()
-for(i in 1:n){
-  post_mean[i] <- mean(post_latent[i,1,1,n_sim]) 
-}
-
-cbind(post_mean, post_latent[,1,1,n_sim], log(data[,1,1]+0.01))
-cbind("last samples"=post_latent[,1,1,n_sim],"true latent"= log(data[,1,1]+0.01))
-
 
 
 # r_it check ###################################################################
@@ -1027,6 +1019,9 @@ cbind("time 1" = truenum0ratio1 , "time 2" =  truenum0ratio2 , "time 3" = truenu
 # Cov(Y_it) 
 Cov_Y_tr <- (1/(1-rho^2))*Lambda%*%t(Lambda) + sigma_sq*diag(J)
 Cov_Y_est <- (1/(1-rho_est[n_sim]^2))*t(lambda_j[,,n_sim])%*%lambda_j[,,n_sim] + sigma_t[n_sim]*diag(J)
+sample_cov1 <- cov(post_latent[,,1,n_sim]) # time 1
+sample_cov2 <- cov(post_latent[,,2,n_sim]) # time 2
+sample_cov3 <- cov(post_latent[,,3,n_sim]) # time 3
 
 
 rownames(Cov_Y_tr) <- paste0("row",1:30)
@@ -1044,6 +1039,22 @@ colnames(compare_mat) <- paste0("column", 1:30)
 Heatmap(compare_mat, column_order = colnames(compare_mat), row_order = rownames(compare_mat),
         row_title = "lower : true", column_title = gt_render("Cov(Y_it) <br> upper : estimated"), name = "mat") # diagonal part is true value, lower - true, upper - posterior estimate
 
+
+# compare with sample covariance
+rownames(sample_cov3) <- paste0("row",1:30)
+colnames(sample_cov3) <- paste0("column",1:30)
+
+rownames(Cov_Y_est) <- paste0("row",1:30)
+colnames(Cov_Y_est) <- paste0("column",1:30)
+
+compare_mat <- sample_cov3
+compare_mat[upper.tri(compare_mat)] <- Cov_Y_est[upper.tri(Cov_Y_est)]
+compare_mat
+rownames(compare_mat) <- paste0("row", 1:30)
+colnames(compare_mat) <- paste0("column", 1:30)
+
+Heatmap(compare_mat, column_order = colnames(compare_mat), row_order = rownames(compare_mat),
+        row_title = "lower : sample cov", column_title = gt_render("Cov(Y_it) <br> upper : estimated"), name = "mat") # diagonal part is true value, lower - true, upper - posterior estimate
 
 
 # time point1 and time point2
@@ -1066,3 +1077,25 @@ colnames(compare_mat) <- paste0("column", 1:30)
 Heatmap(compare_mat, column_order = colnames(compare_mat), row_order = rownames(compare_mat),
         row_title = "lower : true", column_title = gt_render("Cov(Y_it, Y_i(t+1)) <br> upper : estimated"), name = "mat") # diagonal part is true value, lower - true, upper - posterior estimate
 
+
+# 0.7 / 0.82
+1/(1-0.7^2)
+1/(1-0.82^2)
+(1/(1-0.82^2))/(1/(1-0.7^2))
+
+Cov_Y_tr <- (1/(1-rho^2))*Lambda%*%t(Lambda) + sigma_sq*diag(J)
+Cov_Y_est <- (1/(1-rho_est[n_sim]^2))*t(lambda_j[,,n_sim])%*%lambda_j[,,n_sim] + sigma_t[n_sim]*diag(J)
+
+Cov_Y_est[1,1]/Cov_Y_tr[1,1]
+Cov_Y_est[20,20]/Cov_Y_tr[20,20]
+
+
+times <- matrix(0, nrow = 30, ncol = 30)
+for(i in 1:30){
+  for(j in i:30){
+    times[i,j] <- print(Cov_Y_est[i,j]/Cov_Y_tr[i,j])
+  }
+}
+
+times
+summary(times[upper.tri(times)])
