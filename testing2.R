@@ -38,9 +38,9 @@ mu0 <- 0 # prior mean of mu_j0
 sigma0 <- 5 # prior standard deviation of mu_jl
 sigmaj0 <- 5 # prior standard deviation of mu_j0
 sigmajl <- 5 # prior standard deviation of mu_jl
-sigma_base <- 1 # same role with the sigmajl
 c <- 1
 L <- 30
+sigma_base <- 1
 alpha0 <- alpha0_grp <- matrix(0, nrow = n, ncol = J)
 
 
@@ -65,15 +65,15 @@ wgrp3 <- setdiff(setdiff(1:J,wgrp1), wgrp2)
 wgrp1 ; wgrp2 ; wgrp3
 
 for(i in wgrp1){
-    alpha0_grp[,i] <- sample(1:3, size = n, replace = T, prob = w1) 
+  alpha0_grp[,i] <- sample(1:3, size = n, replace = T, prob = w1) 
 }
 
 for(i in wgrp2){
-    alpha0_grp[,i] <- sample(1:3, size = n, replace = T, prob = w2) 
+  alpha0_grp[,i] <- sample(1:3, size = n, replace = T, prob = w2) 
 }
 
 for(i in wgrp3){
-    alpha0_grp[,i] <- sample(1:3, size = n, replace = T, prob = w3) 
+  alpha0_grp[,i] <- sample(1:3, size = n, replace = T, prob = w3) 
 }
 
 alpha0_grp
@@ -122,7 +122,7 @@ for(t in 2:T){
 
 # generating factor eta
 # eta 는 관찰값, 시간마다 다른 값을 가진다
-K <- J/3
+K <- 3
 rho <- 0.7
 
 eta <- array(0, dim=c(K, n, T))
@@ -141,7 +141,7 @@ for(t in 2:T){
 # generating factor loading lambda
 # Lambda는 관찰값, 시간별로 모두 같다고 가정
 # Lambda <- rmvnorm(J, mean = rep(0, K), sigma = diag(K))
-Lambda <- rmvnorm(J, mean = rep(0, K), sigma = diag(1, nrow = K))
+Lambda <- rmvnorm(J, mean = rep(0, K), sigma = diag(1/3, nrow = K))
 
 
 # generating factor array
@@ -176,25 +176,11 @@ y_count <- floor(y_exp) # observed count data
 
 data <- y_count
 
-cov_y <- array(0, dim = c(n,J,T))
-
-for(i in 1:n){
-  for(j in 1:J){
-    for(t in 1:T){
-      cov_y[i,j,t] <- y[i,j,t] - mu[i,j,t]
-    }
-  }
-}
-
-true_samcov1 <- cov(cov_y[,,1])
-true_samcov2 <- cov(cov_y[,,2])
-true_samcov3 <- cov(cov_y[,,3])
-
 
 ################################################################################
 # Gibbs sampling ###############################################################
-# parameter setting ############################################################
-n_sim <- 1000
+# parameter setting
+n_sim <- 10000
 mu_updated <- array(0, dim=c(n, J, T))
 post_latent <- array(0, dim=c(n, J, T, n_sim))
 r_it <- array(0, dim=c(n, T, n_sim))
@@ -231,50 +217,7 @@ rho_est[1] <- rbeta(1, shape1 = 1, shape2 = 0.5) # initial value
 sig_phi <- 1
 sig_w <- 1
 
-# parameter initialize at the true value #######################################
-# n_sim <- 1000
-# mu_updated <- array(0, dim=c(n, J, T))
-# post_latent <- array(0, dim=c(n, J, T, n_sim))
-# r_it <- array(0, dim=c(n, T, n_sim))
-# alpha_ijt <- array(0, dim=c(n, J, T, n_sim))
-# phi1 <- rep(0, n_sim)
-# phi2 <- rep(0, n_sim)
-# lambda_j <- array(0, dim=c(K, J, n_sim))
-# eta_it <- array(0, dim=c(K, n, T, n_sim))
-# sigma_t <- matrix(NA, nrow = n_sim, ncol = 1) # variance. norm : sqrt 
-# w_update <- matrix(0, nrow = n_sim, ncol = L)
-# alpha0_grp_update <- array(data = 0, dim = c(n, J, n_sim))
-# alpha0_update <- array(data = 0, dim = c(n, J, n_sim))
-# mu_j0_update <- matrix(0, nrow = n_sim, ncol = J)
-# mu_jl_update <- array(data = 0, dim = c(L, J, n_sim))
-# mu_jl_update[,,1] <- rnorm(L*J, mean = 2, sd = 1) # initialize mu_jl with reasonable value # need to be updated with estimated value from the data
-# m <- rep(0, (T+1))
-# C <- rep(0, (T+1))
-# a <- rep(0, T)
-# R <- rep(0, T)
-# m_vec <- matrix(0, nrow = (T+1), ncol = K)
-# C_mat <- array(0, dim = c(K, K, (T+1)))
-# a_vec <- matrix(0, nrow = T, ncol = K)
-# R_mat <- array(0, dim = c(K, K, T))
-# rho_est <- rep(0, n_sim)
-# 
-# 
-# # initial value
-# post_latent[,,,1] <- y
-# r_it[,,1] <- r[,1,]
-# alpha_ijt[,,,1] <- alpha
-# phi1[1] <- phi_g1
-# phi2[1] <- phi_g2
-# lambda_j[,,1] <- t(Lambda)
-# eta_it[,,,1] <- eta
-# w_update[1,] <- rep(1/L,L)
-# m[1] <- 1 ; C[1] <- 0.8
-# m_vec[1,] <- rep(0, K) ; C_mat[,,1] <- diag(K)
-# rho_est[1] <- rho # initial value
-# sigma_t[1] <- sigma_sq # initial value
-# 
-# sig_phi <- 1
-# sig_w <- 1
+
 
 startTm <- Sys.time()
 for(s in 2:n_sim){
@@ -295,7 +238,6 @@ for(s in 2:n_sim){
   # lambda_j[,,s-1] <- t(Lambda)
   # eta_it[,,,s-1] <- eta[,,]
   # rho_est[s-1] <- rho
-  # rho_est[s] <- rho
   # sigma_t[s-1] <- sigma_sq
   
   # sampling posterior latent variable ########################################
@@ -448,16 +390,6 @@ for(s in 2:n_sim){
   }
   if(sum(w_update[s,1:(L-1)]) >= 1) w_update[s,L] <- 0 else w_update[s,L] <- 1-sum(w_update[s,1:(L-1)])
 
-  # # update mu_jl
-  # for(j in 1:J){
-  #   for(l in 1:L){
-  #     mu_sigma <- (1/(sigma0^2) + sum(alpha0_grp_update[,j,s]==l)/(sigma_base^2))
-  #     mu_sigma <- 1/mu_sigma
-  #     alpha_current <- alpha0_update[,,s]
-  #     mu_mean <- mu_sigma*(mu0/(sigma0^2) + sum(alpha_current[alpha0_grp_update[,j,s]==l])/(sigma_base^2))
-  #     mu_jl_update[l,j,s] <- rnorm(1, mean = mu_mean, sd = sqrt(mu_sigma))
-  #   }
-  # }
 
   # new update mu_j0 and mu_jl
   for(j in 1:J){
@@ -477,9 +409,9 @@ for(s in 2:n_sim){
       mu_jl_update[l,j,s] <- rnorm(1, mean = mu_jl_mean, sd = sqrt(mu_jl_sigma))
     }
   }
-  
-  
-  
+
+
+
   # phi1 update ##############################################################
   alpha_term <- 0
   alpha_sq <- 0
@@ -607,7 +539,58 @@ for(s in 2:n_sim){
   
   rho_est[s] <- sqrt(var_rho)*qnorm(u2, 0, 1) + mean_rho
   
-
+  # rho - beta(60, 30) prior - MH algorithm ####################################
+  # # proposal distribution - random walk
+  # rho_old <- rho_est[s-1]
+  # err <- 0.1 # jumping rule
+  # rho_new <- runif(1, min = pnorm(0, mean = rho_old, sd = err), max = pnorm(1, mean = rho_old, sd = err))
+  # # p=0/p=1 보정 
+  # ifelse(rho_new == 0, rho_new <- 1e-10, ifelse(rho_new==1, rho_new <- 1-1e-10, rho_new <- rho_new))
+  # rho_new <- qnorm(rho_new, mean = rho_old, sd = err)
+  # 
+  # # numerator - new sample
+  # # prior : beta(,)
+  # beta_a <- 0.5 ; beta_b <- 1.5
+  # pr_new <- dbeta(rho_new, shape1 = beta_a, shape2 = beta_b, log = T)
+  # lik_new <- 0
+  # for(i in 1:n){
+  #   for(t in 2:T){
+  #     lik_new <- lik_new + dmvnorm(eta_it[,i,t,s] - rho_new*eta_it[,i,t-1,s], mean = rep(0, 3), sigma = diag(3), log = T) 
+  #   }
+  # }
+  # proposal_new <- dnorm(rho_old, mean = rho_new, sd = err, log = T) - log(pnorm(1, mean = rho_new, sd = err) - pnorm(0, mean = rho_new, sd = err))
+  # 
+  # num <- pr_new + lik_new + proposal_new
+  # 
+  # 
+  # # denominator - old sample
+  # pr_old <- dbeta(rho_old, shape1 = beta_a, shape2 = beta_b, log = T)
+  # lik_old <- 0
+  # for(i in 1:n){
+  #   for(t in 2:T){
+  #     lik_old <- lik_old + dmvnorm(eta_it[,i,t,s] - rho_old*eta_it[,i,t-1,s], mean = rep(0, 3), sigma = diag(3), log = T) 
+  #   }
+  # }
+  # proposal_old <- dnorm(rho_new, mean = rho_old, sd = err, log = T) - log(pnorm(1, mean = rho_old, sd = err) - pnorm(0, mean = rho_old, sd = err))
+  # 
+  # denom <- pr_old + lik_old + proposal_old
+  # 
+  # # log ratio
+  # log_ratio <- num - denom
+  # 
+  # 
+  # # accept-reject
+  # u <- runif(1, min = 0, max = 1)
+  # log_ratio <- min(0, log_ratio)
+  # 
+  # if(log(u) < log_ratio){
+  #   rho_est[s] <- rho_new
+  # } else { 
+  #   rho_est[s] <- rho_old 
+  # }
+  
+  
+  
   # sigma_t update ###########################################################
   lik_term <- 0
   for(i in 1:n){
@@ -625,7 +608,6 @@ for(s in 2:n_sim){
 endTm <- Sys.time()
 
 endTm - startTm
-
 
 
 burn_lef = (n_sim/2+1):n_sim
@@ -657,12 +639,15 @@ plot(post_latent[,,3,n_sim], log(data[,,3]+0.01))
 
 
 # r_it check ###################################################################
-r_it[,,n_sim] ; r[,1,]
+post_mean_r <- matrix(NA, nrow = n, ncol = T)
+for(i in 1:n){
+  for(t in 1:T){
+    post_mean_r[i,t] <- mean(r_it[i,t,])
+  }
+}
+post_mean_r ; r_it[,,n_sim] ; r[,1,]
 plot(r[,1,], r_it[,,n_sim] , xlab = "true values", ylab = "last samples", main = "r_it")
 abline(0, 1, col = "red")
-
-ts.plot(r_it[1,1,]) # trace plot seems good
-ts.plot(r_it[2,1,]) # trace plot seems good
 
 
 
@@ -678,11 +663,6 @@ cbind("post mean"=alpha_mean, "last value" = alpha_ijt[1,1,,n_sim], "true" = alp
 
 
 alpha_ijt[,,,n_sim] ; alpha
-
-
-# check trace plot
-ts.plot(alpha_ijt[1,1,1,])
-
 
 
 
@@ -788,22 +768,22 @@ for(j in otu_sam){
   min_alpha <- min(alpha0[,j], alpha0_update[,j,n_sim])
   hist(alpha0[,j], breaks = 20, probability = T, main = paste("OTU",j,", time 0"), xlim = c(min_alpha, max_alpha))
   lines(density(alpha0_update[,j,n_sim]), col = "red")
-
+  
   max_alpha <- max(alpha1[,j], alpha_ijt[,j,1,n_sim])
   min_alpha <- min(alpha1[,j], alpha_ijt[,j,1,n_sim])
   hist(alpha1[,j], breaks = 20, probability = T, main = paste("OTU",j,", time 1"), xlim = c(min_alpha, max_alpha))
   lines(density(alpha_ijt[,j,1,n_sim]), col = "red")
-
+  
   max_alpha <- max(alpha2[,j], alpha_ijt[,j,2,n_sim])
   min_alpha <- min(alpha2[,j], alpha_ijt[,j,2,n_sim])
   hist(alpha2[,j], breaks = 20, probability = T, main = paste("OTU",j,", time 2"), xlim = c(min_alpha, max_alpha))
   lines(density(alpha_ijt[,j,2,n_sim]), col = "red")
-
+  
   max_alpha <- max(alpha3[,j], alpha_ijt[,j,3,n_sim])
   min_alpha <- min(alpha3[,j], alpha_ijt[,j,3,n_sim])
   hist(alpha3[,j], breaks = 20, probability = T, main = paste("OTU",j,", time 3"), xlim = c(min_alpha, max_alpha))
   lines(density(alpha_ijt[,j,3,n_sim]), col = "red")
-
+  
   # dev.off()
 }
 
@@ -818,21 +798,21 @@ hist(alpha2, xlim = c(overall_min, overall_max), prob = T); lines(density(alpha_
 hist(alpha3, xlim = c(overall_min, overall_max), prob = T); lines(density(alpha_ijt[,,3,n_sim]), col = "red")
 
 for(j in otu_sam){
-hist(alpha0[,j], breaks = 20, probability = TRUE, main = paste("OTU",j,", time 0"),
-     xlim = c(overall_min, overall_max), xlab = "Alpha values", col = "gray")
-lines(density(alpha0_update[,j,n_sim]), col = "red")
-
-hist(alpha1[,j], breaks = 20, probability = TRUE, main = paste("OTU",j,", time 1"),
-     xlim = c(overall_min, overall_max), xlab = "Alpha values", col = "gray")
-lines(density(alpha_ijt[,j,1,n_sim]), col = "red")
-
-hist(alpha2[,j], breaks = 20, probability = TRUE, main = paste("OTU",j,", time 2"),
-     xlim = c(overall_min, overall_max), xlab = "Alpha values", col = "gray")
-lines(density(alpha_ijt[,j,2,n_sim]), col = "red")
-
-hist(alpha3[,j], breaks = 20, probability = TRUE, main = paste("OTU",j,", time 3"),
-     xlim = c(overall_min, overall_max), xlab = "Alpha values", col = "gray")
-lines(density(alpha_ijt[,j,3,n_sim]), col = "red")
+  hist(alpha0[,j], breaks = 20, probability = TRUE, main = paste("OTU",j,", time 0"),
+       xlim = c(overall_min, overall_max), xlab = "Alpha values", col = "gray")
+  lines(density(alpha0_update[,j,n_sim]), col = "red")
+  
+  hist(alpha1[,j], breaks = 20, probability = TRUE, main = paste("OTU",j,", time 1"),
+       xlim = c(overall_min, overall_max), xlab = "Alpha values", col = "gray")
+  lines(density(alpha_ijt[,j,1,n_sim]), col = "red")
+  
+  hist(alpha2[,j], breaks = 20, probability = TRUE, main = paste("OTU",j,", time 2"),
+       xlim = c(overall_min, overall_max), xlab = "Alpha values", col = "gray")
+  lines(density(alpha_ijt[,j,2,n_sim]), col = "red")
+  
+  hist(alpha3[,j], breaks = 20, probability = TRUE, main = paste("OTU",j,", time 3"),
+       xlim = c(overall_min, overall_max), xlab = "Alpha values", col = "gray")
+  lines(density(alpha_ijt[,j,3,n_sim]), col = "red")
 }
 
 # r + alpha check ##############################################################
@@ -877,9 +857,6 @@ ts.plot(phi2)
 lambda_j[,,n_sim]
 t(Lambda)
 ts.plot(lambda_j[1,1,])
-ts.plot(lambda_j[1,2,])
-ts.plot(lambda_j[1,3,])
-ts.plot(lambda_j[1,4,])
 
 
 # if (!require("BiocManager", quietly = TRUE))
@@ -967,7 +944,38 @@ ts.plot(sigma_t)
 # abline(0, 1, col = "red") 
 
 
+# number of 0s in simulated data ###############################################
+# number of 0s in simulated data 
+num0t1 <- sum(floor(exp(r_it_estimated[,,1] + alpha_ijt[,,1,n_sim])) == 0)
+num0t2 <- sum(floor(exp(r_it_estimated[,,2] + alpha_ijt[,,2,n_sim])) == 0)
+num0t3 <- sum(floor(exp(r_it_estimated[,,3] + alpha_ijt[,,3,n_sim])) == 0)
+
+cbind("time 1" = num0t1 , "time 2" =  num0t2 , "time 3" = num0t3)
+
+# number of 0s in true data
+true0t1 <- sum(data[,,1] == 0)
+true0t2 <- sum(data[,,2] == 0)
+true0t3 <- sum(data[,,3] == 0)
+
+cbind("time 1" = true0t1 , "time 2" =  true0t2 , "time 3" = true0t3)
+
+# ratio of 0s in simulated data 
+num0ratio1 <- sum(floor(exp(r_it_estimated[,,1] + alpha_ijt[,,1,n_sim])) == 0)/length(data[,,1])
+num0ratio2 <- sum(floor(exp(r_it_estimated[,,2] + alpha_ijt[,,2,n_sim])) == 0)/length(data[,,2])
+num0ratio3 <- sum(floor(exp(r_it_estimated[,,3] + alpha_ijt[,,3,n_sim])) == 0)/length(data[,,3])
+
+cbind("time 1" = num0ratio1 , "time 2" =  num0ratio2 , "time 3" = num0ratio3)
+
+# ratio of 0s in true data 
+truenum0ratio1 <- sum(data[,,1] == 0)/length(data[,,1])
+truenum0ratio2 <- sum(data[,,2] == 0)/length(data[,,2])
+truenum0ratio3 <- sum(data[,,3] == 0)/length(data[,,3])
+
+cbind("time 1" = truenum0ratio1 , "time 2" =  truenum0ratio2 , "time 3" = truenum0ratio3)
+
+
 # covariance between time point check ##########################################
+# shuangjie's method ###########################################################
 Cov_Y_tr <- (1/(1-rho^2))*Lambda%*%t(Lambda) + sigma_sq*diag(J)
 Cov_Y_est <- matrix(0, J, J)
 for(s in burn_lef){
@@ -985,6 +993,7 @@ rownames(compare_mat) <- paste0("row", 1:J)
 colnames(compare_mat) <- paste0("column", 1:J)
 Heatmap(compare_mat, column_order = colnames(compare_mat), row_order = rownames(compare_mat),
         row_title = "lower : true", column_title = gt_render("Cov(Y_it) <br> upper : estimated"), name = "mat") # diagonal part is true value, lower - true, upper - posterior estimate
+
 
 
 teta_Y_tr <- Lambda%*%t(Lambda)
@@ -1006,75 +1015,105 @@ Heatmap(compare_mat, column_order = colnames(compare_mat), row_order = rownames(
         row_title = "lower : true", column_title = gt_render("Lam * t(Lam) <br> upper : estimated"), name = "mat") # diagonal part is true value, lower - true, upper - posterior estimate
 
 
-# true covariance and estimated covariance
-SCov_Y_tr <- true_samcov1 # we can compare with true_samcov2/true_samcov3
-Cov_Y_est <- matrix(0, J, J)
+Cor_Y_tr <- cov2cor((1/(1-rho^2))*Lambda%*%t(Lambda) + sigma_sq*diag(J))
+Cor_Y_est <- matrix(0, J, J)
 for(s in burn_lef){
-  Cov_Y_est <- Cov_Y_est + (1/(1-rho_est[s]^2))*t(lambda_j[,,s])%*%lambda_j[,,s] + sigma_t[s]*diag(J)
+  Cor_Y_est <- Cor_Y_est + cov2cor((1/(1-rho_est[s]^2))*t(lambda_j[,,s])%*%lambda_j[,,s] + sigma_t[s]*diag(J))
 }
-Cov_Y_est = Cov_Y_est/length(burn_lef)
-rownames(SCov_Y_tr) <- paste0("row",1:J)
-colnames(SCov_Y_tr) <- paste0("column",1:J)
-rownames(Cov_Y_est) <- paste0("row",1:J)
-colnames(Cov_Y_est) <- paste0("column",1:J)
-compare_mat <- SCov_Y_tr
-compare_mat[upper.tri(compare_mat)] <- Cov_Y_est[upper.tri(Cov_Y_est)]
+Cor_Y_est = Cor_Y_est/length(burn_lef)
+rownames(Cov_Y_tr) <- paste0("row",1:J)
+colnames(Cov_Y_tr) <- paste0("column",1:J)
+rownames(Cor_Y_est) <- paste0("row",1:J)
+colnames(Cor_Y_est) <- paste0("column",1:J)
+compare_mat <- Cor_Y_tr
+compare_mat[upper.tri(compare_mat)] <- Cor_Y_est[upper.tri(Cor_Y_est)]
 compare_mat
 rownames(compare_mat) <- paste0("row", 1:J)
 colnames(compare_mat) <- paste0("column", 1:J)
 Heatmap(compare_mat, column_order = colnames(compare_mat), row_order = rownames(compare_mat),
-        row_title = "lower : true sample cov", column_title = gt_render("Cov(Y_it) <br> upper : estimated"), name = "mat") # diagonal part is true value, lower - true, upper - posterior estimate
+        row_title = "lower : true", column_title = gt_render("Cor(Y_it) <br> upper : estimated"), name = "mat") # diagonal part is true value, lower - true, upper - posterior estimate
 
 
-Y_mu <- array(0, dim = c(n,J,T))
-r_it_array <- array(0, dim = c(n,J,T,n_sim))
+# Cov(Y_it) 
+Cov_Y_tr <- (1/(1-rho^2))*Lambda%*%t(Lambda) + sigma_sq*diag(J)
+Cov_Y_est <- (1/(1-mean(rho_est)^2))*t(lambda_j[,,n_sim])%*%lambda_j[,,n_sim] + sigma_t[n_sim]*diag(J)
+sample_cov1 <- cov(y_tilde_t[,,1])
+sample_cov2 <- cov(y_tilde_t[,,2])
+sample_cov3 <- cov(y_tilde_t[,,3])
 
-for(s in 1:n_sim){
-r_it_array[,,1,s] <- matrix(r_it[,1,s], nrow = n, ncol = J)
-r_it_array[,,2,s] <- matrix(r_it[,2,s], nrow = n, ncol = J)
-r_it_array[,,3,s] <- matrix(r_it[,3,s], nrow = n, ncol = J)
-}
-r_it_array
 
-for(i in 1:n){
-  for(j in 1:J){
-    for(t in 1:T){
-      for(s in burn_lef){
-        Y_mu <- Y_mu + post_latent[,,,s] - r_it_array[,,,s] - alpha_ijt[,,,s]
-      }
-    }
+rownames(Cov_Y_tr) <- paste0("row",1:30)
+colnames(Cov_Y_tr) <- paste0("column",1:30)
+
+rownames(Cov_Y_est) <- paste0("row",1:30)
+colnames(Cov_Y_est) <- paste0("column",1:30)
+
+compare_mat <- Cov_Y_tr
+compare_mat[upper.tri(compare_mat)] <- Cov_Y_est[upper.tri(Cov_Y_est)]
+compare_mat
+rownames(compare_mat) <- paste0("row", 1:30)
+colnames(compare_mat) <- paste0("column", 1:30)
+
+Heatmap(compare_mat, column_order = colnames(compare_mat), row_order = rownames(compare_mat),
+        row_title = "lower : true", column_title = gt_render("Cov(Y_it) <br> upper : estimated"), name = "mat") # diagonal part is true value, lower - true, upper - posterior estimate
+################################################################################
+
+# compare with sample covariance
+rownames(sample_cov1) <- paste0("row",1:30)
+colnames(sample_cov1) <- paste0("column",1:30)
+
+rownames(Cov_Y_est) <- paste0("row",1:30)
+colnames(Cov_Y_est) <- paste0("column",1:30)
+
+compare_mat <- sample_cov1
+compare_mat[upper.tri(compare_mat)] <- Cov_Y_est[upper.tri(Cov_Y_est)]
+compare_mat
+rownames(compare_mat) <- paste0("row", 1:30)
+colnames(compare_mat) <- paste0("column", 1:30)
+
+Heatmap(compare_mat, column_order = colnames(compare_mat), row_order = rownames(compare_mat),
+        row_title = "lower : sample cov", column_title = gt_render("Cov(Y_it) <br> upper : estimated"), name = "mat") # diagonal part is true value, lower - true, upper - posterior estimate
+
+
+# time point1 and time point2
+Cov_Y_tr <- (rho/(1-rho^2))*Lambda%*%t(Lambda)
+Cov_Y_est <- (rho_est[n_sim]/(1-mean(rho_est[n_sim])^2))*t(lambda_j[,,n_sim])%*%lambda_j[,,n_sim]
+# rho_est[n_sim]/mean(rho_est) use
+
+rownames(Cov_Y_tr) <- paste0("row",1:30)
+colnames(Cov_Y_tr) <- paste0("column",1:30)
+
+rownames(Cov_Y_est) <- paste0("row",1:30)
+colnames(Cov_Y_est) <- paste0("column",1:30)
+
+compare_mat <- Cov_Y_tr
+compare_mat[upper.tri(compare_mat)] <- Cov_Y_est[upper.tri(Cov_Y_est)]
+compare_mat
+rownames(compare_mat) <- paste0("row", 1:30)
+colnames(compare_mat) <- paste0("column", 1:30)
+
+Heatmap(compare_mat, column_order = colnames(compare_mat), row_order = rownames(compare_mat),
+        row_title = "lower : true", column_title = gt_render("Cov(Y_it, Y_i(t+1)) <br> upper : estimated"), name = "mat") # diagonal part is true value, lower - true, upper - posterior estimate
+
+
+# 0.7 / 0.82
+1/(1-0.7^2)
+1/(1-0.82^2)
+(1/(1-0.82^2))/(1/(1-0.7^2))
+
+Cov_Y_tr <- (1/(1-rho^2))*Lambda%*%t(Lambda) + sigma_sq*diag(J)
+Cov_Y_est <- (1/(1-rho_est[n_sim]^2))*t(lambda_j[,,n_sim])%*%lambda_j[,,n_sim] + sigma_t[n_sim]*diag(J)
+
+Cov_Y_est[1,1]/Cov_Y_tr[1,1]
+Cov_Y_est[20,20]/Cov_Y_tr[20,20]
+
+
+times <- matrix(0, nrow = 30, ncol = 30)
+for(i in 1:30){
+  for(j in i:30){
+    times[i,j] <- print(Cov_Y_est[i,j]/Cov_Y_tr[i,j])
   }
 }
 
-
-Y_mu <- post_latent[,,,n_sim] - r_it_array[,,,n_sim] - alpha_ijt[,,,n_sim]
-
-SCov_Y_est <- cov(Y_mu[,,1])
-rownames(SCov_Y_est) <- paste0("row",1:J)
-colnames(SCov_Y_est) <- paste0("column",1:J)
-rownames(SCov_Y_tr) <- paste0("row",1:J)
-colnames(SCov_Y_tr) <- paste0("column",1:J)
-compare_mat <- SCov_Y_tr
-compare_mat[upper.tri(compare_mat)] <- SCov_Y_est[upper.tri(SCov_Y_est)]
-compare_mat
-rownames(compare_mat) <- paste0("row", 1:J)
-colnames(compare_mat) <- paste0("column", 1:J)
-Heatmap(compare_mat, column_order = colnames(compare_mat), row_order = rownames(compare_mat),
-        row_title = "lower : true sample cov", column_title = gt_render("upper : estimated sample cov"), name = "mat") 
-
-
-# true sample covariance vs true cov
-SCov_Y_tr <- true_samcov1 # we can compare with true_samcov2/true_samcov3
-Cov_Y_tr <- (1/(1-rho^2))*Lambda%*%t(Lambda) + sigma_sq*diag(J)
-rownames(SCov_Y_tr) <- paste0("row",1:J)
-colnames(SCov_Y_tr) <- paste0("column",1:J)
-rownames(Cov_Y_tr) <- paste0("row",1:J)
-colnames(Cov_Y_tr) <- paste0("column",1:J)
-compare_mat <- SCov_Y_tr
-compare_mat[upper.tri(compare_mat)] <- Cov_Y_est[upper.tri(Cov_Y_tr)]
-compare_mat
-rownames(compare_mat) <- paste0("row", 1:J)
-colnames(compare_mat) <- paste0("column", 1:J)
-Heatmap(compare_mat, column_order = colnames(compare_mat), row_order = rownames(compare_mat),
-        row_title = "lower : true sample covariance", column_title = gt_render("Cov(Y_it) <br> upper : true"), name = "mat") # diagonal part is true value, lower - true, upper - posterior estimate
-
+times
+summary(times[upper.tri(times)])
