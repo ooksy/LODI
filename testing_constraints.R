@@ -8,7 +8,7 @@ library(truncnorm)
 
 
 # Data generation ##############################################################
-set.seed(10000)
+set.seed(123)
 g1 <- 1:10
 g2 <- 11:20
 n <- max(g2)
@@ -87,6 +87,7 @@ for(i in 1:n){
   }
 }
 
+
 alpha0
 
 
@@ -125,23 +126,16 @@ for(t in 2:T){
 # eta 는 관찰값, 시간마다 다른 값을 가진다
 K <- 3
 rho <- 0.7
+Q <- 0.2
 
 eta <- array(0, dim=c(K, n, T))
 
-eta0 <- rmvnorm(n, mean = rep(0, K), sigma = diag(K))
-eta0 <- t(eta0)
-
-eta[,,1] <- rho*eta0 + t(rmvnorm(n, mean = rep(0, K), sigma = diag(K)))
-
+eta[,,1] <- t(rmvnorm(n, mean = rep(0, K), sigma = diag(1, K)))
 
 for(t in 2:T){
-  eta[,,t] <- rho*eta[,,t-1] + t(rmvnorm(n, mean = rep(0, K), sigma = diag(K)))
+  eta[,,t] <- rho*eta[,,t-1] + t(rmvnorm(n, mean = rep(0, K), sigma = diag(sqrt(Q), K)))
 }
 
-
-# generating factor loading lambda - with lower triangular constraint
-# Lambda <- rmvnorm(J, mean = rep(0, K), sigma = diag(K))
-# Lambda <- rmvnorm(J, mean = rep(0, K), sigma = diag(1, nrow = K))
 
 Lambda <- matrix(0, nrow = J, ncol = K)
 
@@ -150,29 +144,14 @@ for(j in 1:J){
   for(k in 1:K){
     if(j >= k){
       if(j == k){
-        Lambda[j, k] <- abs(rnorm(1, 0, sqrt(1/3)))
+        Lambda[j, k] <- 1
       } else {
-        Lambda[j, k] <- rnorm(1, 0, sqrt(1/3))
+        Lambda[j, k] <- rnorm(1, 0, 0.5)
       }
     }
   }
 }
 
-summary(Lambda %*% t(Lambda))
-
-
-# # 1 diagonal lambda
-# for(j in 1:J){
-#   for(k in 1:K){
-#     if(j >= k){
-#       if(j == k){
-#         Lambda[j, k] <- 1
-#       } else {
-#         Lambda[j, k] <- rnorm(1, 0, 1)
-#       }
-#     }
-#   }
-# }
 
 Lambda
 
@@ -185,9 +164,7 @@ factor
 
 # generating the error
 # variance of error term is 1
-sig_a = 2 ; sig_b = 2 # hyperparameter
-sigma_sq <- 1/rgamma(1, sig_a, sig_b)
-sigma_sq
+sigma_sq <- 0.5
 
 # final data
 mu <- r + alpha  # mean of the log of the latent variable(factor부분 안 더함?)
@@ -208,33 +185,27 @@ y_count <- floor(y_exp) # observed count data
 
 data <- y_count
 
-# cov_y <- array(0, dim = c(n,J,T))
-# 
-# for(i in 1:n){
-#   for(j in 1:J){
-#     for(t in 1:T){
-#       cov_y[i,j,t] <- y[i,j,t] - mu[i,j,t]
-#     }
-#   }
-# }
-# 
-# true_samcov1 <- cov(cov_y[,,1])
-# true_samcov2 <- cov(cov_y[,,2])
-# true_samcov3 <- cov(cov_y[,,3])
 
 
 ################################################################################
 # Gibbs sampling ###############################################################
 # parameter setting ############################################################
-n_sim <- 1000
+n_sim <- 50000
+burn_in <- n_sim/2
+thin <- 2
+keep <- seq(burn_in + 1, n_sim, by = thin)
+
 mu_updated <- array(0, dim=c(n, J, T))
 post_latent <- array(0, dim=c(n, J, T, n_sim))
 r_it <- array(0, dim=c(n, T, n_sim))
 alpha_ijt <- array(0, dim=c(n, J, T, n_sim))
+
 lambda_j <- array(0, dim=c(K, J, n_sim))
 eta_it <- array(0, dim=c(K, n, T, n_sim))
+
 sigma_t <- matrix(NA, nrow = n_sim, ncol = 1) # variance. norm function 안에 들어갈때는 sqrt 해줘야함
 sigma_t[1] <- 2 # initial value
+
 w_update <- matrix(0, nrow = n_sim, ncol = L)
 w_update[1,] <- rep(1/L,L) # initial value
 alpha0_grp_update <- array(data = 0, dim = c(n, J, n_sim))
@@ -263,51 +234,6 @@ rho_est[1] <- rbeta(1, shape1 = 1, shape2 = 0.5) # initial value
 sig_phi <- 1
 sig_w <- 1
 
-# parameter initialize at the true value #######################################
-# n_sim <- 10000
-# mu_updated <- array(0, dim=c(n, J, T))
-# post_latent <- array(0, dim=c(n, J, T, n_sim))
-# r_it <- array(0, dim=c(n, T, n_sim))
-# alpha_ijt <- array(0, dim=c(n, J, T, n_sim))
-# phi1 <- rep(0, n_sim)
-# phi2 <- rep(0, n_sim)
-# lambda_j <- array(0, dim=c(K, J, n_sim))
-# eta_it <- array(0, dim=c(K, n, T, n_sim))
-# sigma_t <- matrix(NA, nrow = n_sim, ncol = 1) # variance. norm : sqrt 
-# w_update <- matrix(0, nrow = n_sim, ncol = L)
-# alpha0_grp_update <- array(data = 0, dim = c(n, J, n_sim))
-# alpha0_update <- array(data = 0, dim = c(n, J, n_sim))
-# mu_j0_update <- matrix(0, nrow = n_sim, ncol = J)
-# mu_jl_update <- array(data = 0, dim = c(L, J, n_sim))
-# mu_jl_update[,,1] <- rnorm(L*J, mean = 2, sd = 1) # initialize mu_jl with reasonable value # need to be updated with estimated value from the data
-# m <- rep(0, (T+1))
-# C <- rep(0, (T+1))
-# a <- rep(0, T)
-# R <- rep(0, T)
-# m_vec <- matrix(0, nrow = (T+1), ncol = K)
-# C_mat <- array(0, dim = c(K, K, (T+1)))
-# a_vec <- matrix(0, nrow = T, ncol = K)
-# R_mat <- array(0, dim = c(K, K, T))
-# rho_est <- rep(0, n_sim)
-# 
-# 
-# # initial value
-# post_latent[,,,1] <- y
-# r_it[,,1] <- r[,1,]
-# alpha_ijt[,,,1] <- alpha
-# phi1[1] <- phi_g1
-# phi2[1] <- phi_g2
-# lambda_j[,,1] <- t(Lambda)
-# eta_it[,,,1] <- eta
-# w_update[1,] <- rep(1/L,L)
-# m[1] <- 1 ; C[1] <- 0.8
-# m_vec[1,] <- rep(0, K) ; C_mat[,,1] <- diag(K)
-# rho_est[1] <- rho # initial value
-# sigma_t[1] <- sigma_sq # initial value
-# 
-# sig_phi <- 1
-# sig_w <- 1
-
 
 # gibbs sampling ###############################################################
 startTm <- Sys.time()
@@ -318,9 +244,9 @@ for(s in 2:n_sim){
   alpha0_grp_update[,,s] <- alpha0_grp
   alpha_ijt[,,,s] <- alpha
   alpha0_update[,,s] <- alpha0
-  alpha0_grp_update[,,s-1] <- alpha0_grp
-  alpha_ijt[,,,s-1] <- alpha
-  alpha0_update[,,s-1] <- alpha0
+  alpha0_grp_update[,,s] <- alpha0_grp
+  alpha_ijt[,,,s] <- alpha
+  alpha0_update[,,s] <- alpha0
   # w_update[s,] <- w
   # mu_j0_update[s,] <- mu0_j
   # mu_jl_update[,,s-1] <- mu_jl
@@ -328,11 +254,11 @@ for(s in 2:n_sim){
   phi2[s-1] <- phi_g2
   # lambda_j[,,s-1] <- t(Lambda)
   # eta_it[,,,s-1] <- eta[,,]
-  # rho_est[s-1] <- rho
-  # rho_est[s] <- rho
+  rho_est[s-1] <- rho
+  rho_est[s] <- rho
   sigma_t[s-1] <- sigma_sq
   
-  # sampling posterior latent variable ########################################
+  # # sampling posterior latent variable ########################################
   # for(i in 1:n){
   #   for(j in 1:J){
   #     for(t in 1:T){
@@ -349,12 +275,12 @@ for(s in 2:n_sim){
   #     }
   #   }
   # }
-  
-  
-  
-  
-  
-  # r update - 1iter 당 nT번, group별로 sigma 나눠야함! variance/sd인지 명확히 구분하기 ####
+  # 
+  # 
+  # 
+  # 
+  # 
+  # # r update - 1iter 당 nT번, group별로 sigma 나눠야함! variance/sd인지 명확히 구분하기 ####
   # for(i in g1){
   #   for(t in 1:T){
   #     # posterior mean
@@ -362,17 +288,17 @@ for(s in 2:n_sim){
   #     for(j in 1:J){
   #       r_mean <- r_mean + (post_latent[i,j,t,s] - alpha_ijt[i,j,t,s-1] - lambda_j[,j,s-1]%*%eta_it[,i,t,s-1])
   #     }
-  #     
+  # 
   #     # posterior variance - var_part는 norm함수에서 sqrt 해주고, sig_g1는 variance임 그냥
   #     r_mean <- r_mean/sigma_t[s-1]
   #     r_var <- (J/sigma_t[s-1] + 1/sig_g1)
   #     r_mean <- r_mean/r_var
   #     r_var <- 1/r_var
-  #     
+  # 
   #     r_it[i,t,s] <- rnorm(1, mean = r_mean, sd = sqrt(r_var))
   #   }
   # }
-  
+  # 
   # for(i in g2){
   #   for(t in 1:T){
   #     # posterior mean
@@ -380,37 +306,37 @@ for(s in 2:n_sim){
   #     for(j in 1:J){
   #       r_mean2 <- r_mean2 + (post_latent[i,j,t,s] - alpha_ijt[i,j,t,s-1] - lambda_j[,j,s-1]%*%eta_it[,i,t,s-1])
   #     }
-  #     
+  # 
   #     # posterior variance - var_part는 norm함수에서 sqrt 해주고, sig_g1는 variance임 그냥
   #     r_mean2 <- r_mean2/sigma_t[s-1]
   #     r_var2 <- (J/sigma_t[s-1] + 1/sig_g2)
   #     r_mean2 <- r_mean2/r_var2
   #     r_var2 <- 1/r_var2
-  #     
+  # 
   #     r_it[i,t,s] <- rnorm(1, mean = r_mean2, sd = sqrt(r_var2))
   #   }
   # }
-  
-  
-  
-  
-  # alpha update #############################################################
-  # update group membership
+  # 
+  # 
+  # 
+  # 
+  # # alpha update #############################################################
+  # # update group membership
   # grp_prob <- c()
   # for(i in 1:n){
   #   for(j in 1:J){
   #     for(l in 1:L){
   #       grp_prob[l] <- w_update[s-1,l]*dnorm(alpha0_update[i,j,s-1], mean = mu_jl_update[l,j,s-1], sd = sigma_base)
   #     }
-  #     
+  # 
   #     if(all(grp_prob == rep(0, L))) {grp_prob <- rep(1/L, L)}
-  #     
+  # 
   #     alpha0_grp_update[i,j,s] <- sample(x=1:L, size = 1, replace = T, prob = grp_prob/sum(grp_prob))
   #   }
   # }
-  
-  # update alpha0 | group
-  # time point T update
+  # 
+  # # update alpha0 | group
+  # # time point T update
   # for(i in 1:n){
   #   for(j in 1:J){
   #     # draw alpha0
@@ -499,22 +425,22 @@ for(s in 2:n_sim){
   #   mu0_sigma <- 1/mu0_sigma
   #   mu0_mean <- (mu0/(sigma0^2)) + (sum(mu_jl_update[,j,s-1])/sigmaj0^2)
   #   mu0_mean <- mu0_sigma*mu0_mean
-  #   
+  # 
   #   mu_j0_update[s,j] <- rnorm(1, mean = mu0_mean, sd = sqrt(mu0_sigma))
-  #   
+  # 
   #   for(l in 1:L){
   #     mu_jl_sigma <- (1/(sigmaj0^2)) + (sum(alpha0_grp_update[,j,s]==l)/(sigmajl^2))
   #     mu_jl_sigma <- 1/mu_jl_sigma
   #     mu_jl_mean <- (mu_j0_update[s,j]/(sigmaj0^2)) + (sum(alpha0_update[alpha0_grp_update[,j,s]==l,j,s])/(sigmajl^2))
   #     mu_jl_mean <- mu_jl_sigma*mu_jl_mean
-  #     
+  # 
   #     mu_jl_update[l,j,s] <- rnorm(1, mean = mu_jl_mean, sd = sqrt(mu_jl_sigma))
   #   }
   # }
-  
-  
-  
-  # phi1 update ##############################################################
+  # 
+  # 
+  # 
+  # # phi1 update ##############################################################
   # alpha_term <- 0
   # alpha_sq <- 0
   # mu_phi1 <- 0
@@ -587,13 +513,6 @@ for(s in 2:n_sim){
   }
   
   
-  
-
-  
-  
-  
-  
-  
   # eta update #################################################################
   # forward filtering
   for(i in 1:n){
@@ -622,14 +541,14 @@ for(s in 2:n_sim){
     # draw eta_i(T-1)...
     for(t in (T-1):1){
       C_mat_inv <- matrix(0, nrow = K, ncol = K)
-      
+
       C_mat_inv <- solve(C_mat[,,t+1])
       # C_mat_inv[lower.tri(C_mat_inv)] <- t(C_mat_inv)[lower.tri(C_mat_inv)]
-      
+
       eta_mean <- solve((rho_est[s-1]^2)*diag(K) + C_mat_inv)%*%(eta_it[,i,t+1,s]/rho_est[s-1] + C_mat_inv%*%m_vec[t+1,])
       eta_cov <- solve((rho_est[s-1]^2)*diag(K) + C_mat_inv)
       eta_cov[lower.tri(eta_cov)] <- t(eta_cov)[lower.tri(eta_cov)]
-      
+
       eta_it[,i,t,s] <- rmvnorm(1, mean = eta_mean, sigma = eta_cov)
     }
   }
@@ -638,28 +557,28 @@ for(s in 2:n_sim){
   # rho update - gibbs sampling (overestimate) #################################
   rho_mean <- 0
   rho_var <- 0
-  
+
   for(i in 1:n){
     for(t in 2:T){
       rho_var <- rho_var + as.numeric((t(eta_it[,i,t-1,s]) %*% eta_it[,i,t-1,s]))
     }
   }
-  
+
   for(i in 1:n){
     for(t in 2:T){
       rho_mean <- rho_mean + as.numeric((t(eta_it[,i,t-1,s]) %*% eta_it[,i,t,s]))
     }
   }
-  
+
   var_rho <- 1/rho_var
   mean_rho <- rho_mean * var_rho
-  
+
   u2 <- runif(1, pnorm(0, mean = mean_rho, sd = sqrt(var_rho)), pnorm(1, mean = mean_rho, sd = sqrt(var_rho)))
-  
+
   rho_est[s] <- sqrt(var_rho)*qnorm(u2, 0, 1) + mean_rho
   
   
-  # sigma_t update ###########################################################
+  # # sigma_t update ###########################################################
   # lik_term <- 0
   # for(i in 1:n){
   #   for(j in 1:J){
@@ -672,6 +591,8 @@ for(s in 2:n_sim){
   # 
   # sigma_t[s] <- 1/rgamma(1, sig_a + (n*J*T/2), sig_b + (lik_term/2))
   
+  
+  if(s %% 100 == 0) cat("Iteration:", s, "\n")
 }
 endTm <- Sys.time()
 
@@ -926,16 +847,14 @@ ts.plot(phi2)
 
 # lambda check #################################################################
 true  <- Lambda # true
-estimated <- t(lambda_j[,,n_sim]) # estimated
+# estimated <- t(lambda_j[,,n_sim]) # estimated
 
-# estimated <- matrix(0, nrow = J, ncol = K)
-# for(s in burn_lef){
-#   estimated <- estimated + t(lambda_j[,,s])
-# }
-# 
-# estimated <- estimated/length(burn_lef)
+estimated <- matrix(0, nrow = J, ncol = K)
+for(s in burn_lef){
+  estimated <- estimated + t(lambda_j[,,s])
+}
 
-
+estimated <- estimated/length(burn_lef)
 
 
 rownames(true) <- paste0("row",1:J)
@@ -950,6 +869,17 @@ ht2 <- Heatmap(estimated, column_order = colnames(estimated), row_order = rownam
                row_title = "OTU", column_title = "Estimated")
 ht_list <- ht1 + ht2
 draw(ht_list, column_title = "Lambda")
+
+ts.plot(lambda_j[1,1,])
+ts.plot(lambda_j[2,2,])
+ts.plot(lambda_j[3,3,])
+
+ts.plot(lambda_j[1,2,])
+ts.plot(lambda_j[1,3,])
+ts.plot(lambda_j[1,4,])
+ts.plot(lambda_j[1,5,])
+
+ts.plot(lambda_j[3,10,])
 
 
 
@@ -1017,8 +947,10 @@ ts.plot(eta_it[2,1,1,])
 # rho check ####################################################################
 rho
 rho_est[n_sim]
+mean(rho_est)
 
-ts.plot(rho_est) 
+ts.plot(rho_est)
+ts.plot(1/(1-rho_est^2)) 
 mean(rho_est)
 
 # sigma_t check ################################################################
@@ -1034,13 +966,27 @@ ts.plot(sigma_t)
 # covariance between time point check ##########################################
 Cov_Y_tr <- (1/(1-rho^2))*Lambda%*%t(Lambda) + sigma_sq*diag(J)
 
-Cov_Y_est <- (1/(1-rho_est[n_sim]^2))*t(lambda_j[,,n_sim])%*%lambda_j[,,n_sim] + sigma_t[n_sim-1]*diag(J)
+# last iteration
+# Cov_Y_est <- (1/(1-rho_est[n_sim]^2))*t(lambda_j[,,n_sim])%*%lambda_j[,,n_sim] + sigma_t[n_sim-1]*diag(J)
 
-# Cov_Y_est <- matrix(0, J, J)
-# for(s in burn_lef){
-#   Cov_Y_est <- Cov_Y_est + (1/(1-rho_est[s]^2))*t(lambda_j[,,s])%*%lambda_j[,,s] + sigma_t[s]*diag(J)
-# }
-# Cov_Y_est = Cov_Y_est/length(burn_lef)
+# posterior mean
+Cov_Y_est <- matrix(0, J, J)
+sigma_t[s] <- sigma_t[s-1]
+for(s in burn_lef){
+  Cov_Y_est <- Cov_Y_est + (1/(1-rho_est[s]^2))*t(lambda_j[,,s])%*%lambda_j[,,s] + sigma_t[s]*diag(J)
+}
+Cov_Y_est = Cov_Y_est/length(burn_lef)
+
+# posterior median
+Cov_Y_est <- matrix(0, J, J)
+sigma_t[s] <- sigma_t[s-1]
+for(s in burn_lef){
+  Cov_Y_est <- Cov_Y_est + (1/(1-median(rho_est)^2))*t(lambda_j[,,s])%*%lambda_j[,,s] + sigma_t[s]*diag(J)
+}
+Cov_Y_est = Cov_Y_est/length(burn_lef)
+
+
+
 rownames(Cov_Y_tr) <- paste0("row",1:J)
 colnames(Cov_Y_tr) <- paste0("column",1:J)
 rownames(Cov_Y_est) <- paste0("row",1:J)
