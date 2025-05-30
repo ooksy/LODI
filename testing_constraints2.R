@@ -18,7 +18,7 @@ T <- 3
 
 # generating parameter
 # factor loading
-lambda <- matrix(0, nrow = J, ncol = K)
+lambda <- matrix(0, nrow = J, ncol = K) # lambda_sample은 K*J임
 for(j in 1:J) {
   for(k in 1:min(j, K)) {
     if(j == k) {
@@ -48,8 +48,8 @@ for(t in 1:T){
 }
 
 # MCMC setting 
-n_sim <- 1000 # 적은 iteration 해보고 50000으로
-burn_in <- n_sim/2
+n_sim <- 10000 # 적은 iteration 해보고 50000으로
+burn_in <- n_sim/3
 thin <- 2
 keep <- seq(burn_in + 1, n_sim, by = thin)
 
@@ -84,7 +84,7 @@ sig_b <- 1
 
 # MCMC loop
 for(s in 2:n_sim){
-  # lambda_sam[,,s-1] <- lambda_sam[,,s] <- lambda
+  # lambda_sam[,,s-1] <- lambda_sam[,,s] <- t(lambda)
   # eta_sam[,,,s-1] <- eta_sam[,,,s] <- eta
   # rho_sam[s-1] <- rho_sam[s] <- rho
   # Q_sam[s-1] <- Q_sam[s] <- Q
@@ -133,23 +133,30 @@ for(s in 2:n_sim){
 
     m_vec[1,] <- rep(0, K)
     C_mat[,,1] <- diag(K)
-    a_vec[1,] <- rep(0, K)
-    R_mat[,,1] <- diag(K)
 
-    for(t in 2:T){
-      a_vec[t,] <- rho_sam[s-1]*m_vec[(t-1),]
-      R_mat[,,t] <- (rho_sam[s-1]^2)*C_mat[,,(t-1)] + Q_sam[s-1]*diag(K)
+    for(t in 1:T){
+      if(t > 1){
+        a_vec[t,] <- rho_sam[s-1]*m_vec[(t-1),]
+        R_mat[,,t] <- (rho_sam[s-1]^2)*C_mat[,,(t-1)] + Q_sam[s-1]*diag(K)
 
-      R_mat_inv <- solve(R_mat[,,t])
-      # R_mat_inv[lower.tri(R_mat_inv)] <- t(R_mat_inv)[lower.tri(R_mat_inv)]
+        R_mat_inv <- solve(R_mat[,,t])
+        # R_mat_inv[lower.tri(R_mat_inv)] <- t(R_mat_inv)[lower.tri(R_mat_inv)]
+      } else {
+        a_vec[t,] <- m_vec[1,]
+        R_mat[,,t] <- C_mat[,,1]
+
+        R_mat_inv <- solve(R_mat[,,t])
+      }
 
 
-      C_mat[,,t] <- solve(R_mat_inv + lambda_sam[,,s]%*%t(lambda_sam[,,s])/sigma2_sam[s-1])
-      C_mat[,,t][lower.tri(C_mat[,,t])] <- t(C_mat[,,t])[lower.tri(C_mat[,,t])]
+      # update filter
+      Q_t <- t(lambda_sam[,,s]) %*% R_mat[,,t] %*% lambda_sam[,,s] + sigma2_sam[s-1] * diag(J)
+      Q_t_inv <- solve(Q_t)
+      m_vec[t,] <- a_vec[t,] + R_mat[,,t] %*% lambda_sam[,,s] %*% Q_t_inv %*% (y[i,,t] - t(lambda_sam[,,s]) %*% a_vec[t,])
 
-      m_vec[t,] <- C_mat[,,t]%*%
-        (((lambda_sam[,,s]%*%y[i,,t])/sigma2_sam[s-1]) + R_mat_inv%*%a_vec[t,])
-    } # y[i,,t] - lambda_sam *eta_sam 한걸로 짜줘야하는, time 1의데이터는 사용안한게됨
+      C_mat[,,t] <- R_mat[,,t] - (R_mat[,,t] %*% lambda_sam[,,s] %*% Q_t_inv %*% t(lambda_sam[,,s]) %*% R_mat[,,t])
+
+    }
 
 
     eta_sam[,i,T,s] <- rmvnorm(1, mean = m_vec[T,], sigma = C_mat[,,T]) # eta sampling for time point T
@@ -157,18 +164,10 @@ for(s in 2:n_sim){
 
   # backward sampling
   for(t in (T-1):1){
-      C_mat_inv <- matrix(0, nrow = K, ncol = K)
+      sm_mean <- m_vec[t,] + rho_sam[s-1] * C_mat[,,t] %*% solve(R_mat[,,(t+1)]) %*% (eta_sam[,i,(t+1),s] - a_vec[(t+1),])
+      sm_cov <- C_mat[,,t] - (rho_sam[s-1])^2 * C_mat[,,t] %*% solve(R_mat[,,(t+1)]) %*% C_mat[,,t]
 
-      C_mat_inv <- solve(C_mat[,,t+1])
-      # C_mat_inv[lower.tri(C_mat_inv)] <- t(C_mat_inv)[lower.tri(C_mat_inv)]
-
-      eta_cov <- solve((rho_sam[s-1]^2)*diag(K)/Q_sam[s-1] + C_mat_inv)
-      eta_cov[lower.tri(eta_cov)] <- t(eta_cov)[lower.tri(eta_cov)]
-
-      eta_mean <- eta_cov%*%(rho_sam[s-1]*eta_sam[,i,t+1,s]/Q_sam[s-1] + C_mat_inv%*%m_vec[t+1,]) # rho_sam이 밑으로 가있었음 예전 코드에
-
-
-      eta_sam[,i,t,s] <- rmvnorm(1, mean = eta_mean, sigma = eta_cov)
+      eta_sam[,i,t,s] <- rmvnorm(1, mean = sm_mean, sigma = sm_cov)
     }
 
 
@@ -210,17 +209,17 @@ for(s in 2:n_sim){
 
   # 5. sampling sigma2
   # method 1
-  # lik_term <- 0
-  # for(i in 1:n){
-  #   for(j in 1:J){
-  #     for(t in 1:T){
-  #       lik_term <- lik_term + (y[i,j,t] - lambda_sam[,j,s]%*%eta_sam[,i,t,s])^2
-  #     }
-  #   }
-  # }
-  # 
-  # 
-  # sigma2_sam[s] <- 1/rgamma(1, sig_a + (n*J*T/2), sig_b + (lik_term/2))
+  lik_term <- 0
+  for(i in 1:n){
+    for(j in 1:J){
+      for(t in 1:T){
+        lik_term <- lik_term + (y[i,j,t] - lambda_sam[,j,s]%*%eta_sam[,i,t,s])^2
+      }
+    }
+  }
+
+
+  sigma2_sam[s] <- 1/rgamma(1, sig_a + (n*J*T/2), sig_b + (lik_term/2))
 
   # method 2  
   # residual <- array(0, dim = c(n, J, T))
@@ -232,19 +231,41 @@ for(s in 2:n_sim){
   # sigma2_sam[s] <- 1/rgamma(1, sig_a + (n*J*T/2), sig_b + sum(residual^2)/2)
 
   # method 3  
-  residual <- y - aperm(apply(eta_sam[,,,s], 2:3, function(x) t(lambda_sam[,,s]) %*% x), c(2,1,3))
-  ssr <- sum(residual^2)
-  sigma2_sam[s] <- 1/rgamma(1, sig_a + (n*J*T/2), sig_b + ssr/2)
+  # residual <- y - aperm(apply(eta_sam[,,,s], 2:3, function(x) t(lambda_sam[,,s]) %*% x), c(2,1,3))
+  # ssr <- sum(residual^2)
+  # sigma2_sam[s] <- 1/rgamma(1, sig_a + (n*J*T/2), sig_b + ssr/2)
 
 }
 
+save.image("C:/Users/SEC/Desktop/research/25summer/may5th/testing_constraints.RData")
+
+# remove burn-in period & thinning
+lambda_sam <- lambda_sam[,,keep]
+eta_sam <- eta_sam[,,,keep]
+rho_sam <- rho_sam[keep]
+Q_sam <- Q_sam[keep]
+sigma2_sam <- sigma2_sam[keep]
+
+# calculate the posterior mean
+lambda_mean <- apply(lambda_sam, 1:2, mean)
+eta_mean <- apply(eta_sam, 1:3, mean)
+rho_mean <- mean(rho_sam)
+Q_mean <- mean(Q_sam)
+sigma2_mean <- mean(sigma2_sam)
+
+# calculate the posterior median
+lambda_median <- apply(lambda_sam, 1:2, median)
+eta_median <- apply(eta_sam, 1:3, median)
+rho_median <- median(rho_sam)
+Q_median <- median(Q_sam)
+sigma2_median <- median(sigma2_sam)
+
 
 # compare the result
-
 # 1. lambda
 col_fun <- colorRamp2(c(-2, 0, 2), c("blue", "white", "red"))
 true <- lambda
-estimated <- t(lambda_sam[,,s])
+estimated <- t(lambda_mean)
 compare_mat <- true
 rownames(compare_mat) <- paste0("row", 1:J)
 colnames(compare_mat) <- paste0("column", 1:K)
@@ -255,12 +276,10 @@ ht2 <- Heatmap(estimated, column_order = colnames(estimated), row_order = rownam
 ht_list <- ht1 + ht2
 draw(ht_list, column_title = "Lambda")
 
-
-
 # 2. eta
 col_fun <- colorRamp2(c(-2, 0, 2), c("blue", "white", "red"))
-true <- t(eta[,,1])
-estimated <- t(eta_sam[,,1,s])
+true <- t(eta[,,3])
+estimated <- t(eta_mean[,,3])
 compare_mat <- true
 rownames(compare_mat) <- paste0("row", 1:n)
 colnames(compare_mat) <- paste0("column", 1:K)
@@ -271,14 +290,53 @@ ht2 <- Heatmap(estimated, column_order = colnames(estimated), row_order = rownam
 ht_list <- ht1 + ht2
 draw(ht_list, column_title = "Eta")
 
-
 # 3. rho
-mean(rho_sam) ; rho
-
+rho_mean ; rho_median ; rho
 
 # 4. Q
-mean(Q_sam) ; Q
-
+Q_mean ; Q_median ; Q
 
 # 5. sigma2
-mean(sigma2_sam) ; sigma2
+sigma2_mean ; sigma2_median ; sigma2
+
+
+# Covariance matrix
+cross_array <- array(NA, dim = c(J, J, dim(lambda_sam)[3]))
+for (i in 1:(dim(lambda_sam)[3])) {
+  cross_array[,,i] <- crossprod(lambda_sam[,,i])
+}
+# Compute the posterior median across iterations
+lambda_median <- apply(cross_array, c(1, 2), median)
+true <- tcrossprod(lambda)
+estimated <- lambda_median
+compare_mat <- true
+rownames(compare_mat) <- paste0("row", 1:J)
+colnames(compare_mat) <- paste0("column", 1:J)
+col_fun = colorRamp2(c(-2, 0, 2), c("blue", "white", "red"))
+ht1 <- Heatmap(true, column_order = colnames(true), row_order = rownames(true),
+               row_title = "OTU", column_title = "True", col = col_fun)
+ht2 <- Heatmap(estimated, column_order = colnames(estimated), row_order = rownames(estimated),
+               row_title = "OTU", column_title = "Estimated", col = col_fun)
+ht_list <- ht1 + ht2
+draw(ht_list, column_title = "LL^T")
+
+
+
+Cov_array <- array(NA, dim = c(J, J, dim(lambda_sam)[3]))
+for (i in 1:(dim(lambda_sam)[3])) {
+  Cov_array[ , , i] <- 1/(1-rho_sam[i]^2) * crossprod(lambda_sam[,,i]) + Q_sam[i] * diag(J)
+}
+# Compute the posterior median across iterations
+Cov_median <- apply(Cov_array, c(1, 2), median)
+true <- 1/(1-rho^2) *tcrossprod(lambda)+ Q * diag(J)
+estimated <- Cov_median
+compare_mat <- true
+rownames(compare_mat) <- paste0("row", 1:J)
+colnames(compare_mat) <- paste0("column", 1:J)
+col_fun = colorRamp2(c(-2, 0, 2), c("blue", "white", "red"))
+ht1 <- Heatmap(true, column_order = colnames(true), row_order = rownames(true),
+               row_title = "OTU", column_title = "True")
+ht2 <- Heatmap(estimated, column_order = colnames(estimated), row_order = rownames(estimated),
+               row_title = "OTU", column_title = "Estimated")
+ht_list <- ht1 + ht2
+draw(ht_list, column_title = "Cov")
