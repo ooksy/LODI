@@ -49,7 +49,7 @@ for(t in 1:T){
 
 # MCMC setting 
 n_sim <- 10000 # 적은 iteration 해보고 50000으로
-burn_in <- n_sim/3
+burn_in <- n_sim/2
 thin <- 2
 keep <- seq(burn_in + 1, n_sim, by = thin)
 
@@ -172,10 +172,10 @@ for(s in 2:n_sim){
 
 
   }
-  
-  
-  
-  
+
+
+
+
   # 3. sampling rho
   # eta time varying equation의 Q도 고려해줘야함
 
@@ -200,8 +200,8 @@ for(s in 2:n_sim){
 
 
   rho_sam[s] <- rtruncnorm(1, a = 0, b = Inf, mean = mean_rho, sd = sqrt(var_rho))
-  
-  
+
+
   # 4. sampling Q
   resid <- eta_sam[,,2:T,s] - rho_sam[s]*eta_sam[,,1:(T-1),s]
 
@@ -221,19 +221,21 @@ for(s in 2:n_sim){
 
   sigma2_sam[s] <- 1/rgamma(1, sig_a + (n*J*T/2), sig_b + (lik_term/2))
 
-  # method 2  
-  # residual <- array(0, dim = c(n, J, T))
+  # # method 2
+  # # residual <- array(0, dim = c(n, J, T))
+  # #
+  # # for(t in 1:T){
+  # #   residual[,,t] <- y[,,t] - t(eta_sam[,,t,s]) %*% lambda_sam[,,s]
+  # # }
+  # #
+  # # sigma2_sam[s] <- 1/rgamma(1, sig_a + (n*J*T/2), sig_b + sum(residual^2)/2)
   # 
-  # for(t in 1:T){
-  #   residual[,,t] <- y[,,t] - t(eta_sam[,,t,s]) %*% lambda_sam[,,s]
-  # }
-  # 
-  # sigma2_sam[s] <- 1/rgamma(1, sig_a + (n*J*T/2), sig_b + sum(residual^2)/2)
-
-  # method 3  
-  # residual <- y - aperm(apply(eta_sam[,,,s], 2:3, function(x) t(lambda_sam[,,s]) %*% x), c(2,1,3))
-  # ssr <- sum(residual^2)
-  # sigma2_sam[s] <- 1/rgamma(1, sig_a + (n*J*T/2), sig_b + ssr/2)
+  # # method 3
+  # # residual <- y - aperm(apply(eta_sam[,,,s], 2:3, function(x) t(lambda_sam[,,s]) %*% x), c(2,1,3))
+  # # ssr <- sum(residual^2)
+  # # sigma2_sam[s] <- 1/rgamma(1, sig_a + (n*J*T/2), sig_b + ssr/2)
+  
+  if(s %% 100 == 0) cat("Iteration:", s, "\n")
 
 }
 
