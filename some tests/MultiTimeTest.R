@@ -2,7 +2,7 @@ library(mvtnorm)
 library(truncnorm) 
 library(circlize)
 library(ComplexHeatmap)
-set.seed(123)
+set.seed(124)
 N <- 20    # Number of subjects
 T <- 3      # Time points
 J <- 30     # Observed variables
@@ -60,7 +60,7 @@ rho <- 0.5    # AR(1) coefficient
 Q <- 1      # AR(1) innovation variance
 
 # MCMC settings
-n_iter <- 10000
+n_iter <- 1000
 burn_in <- n_iter/2
 thin <- 2
 keep <- seq(burn_in + 1, n_iter, by = thin)
@@ -126,11 +126,6 @@ ffbs <- function(y, Lambda, rho, Q, sigma2) {
 # MCMC Loop
 # ----------------------
 for(iter in 1:n_iter) {
-  Lambda <- Lambda_true
-  rho <- rho_true
-  Q <- Q_true
-  sigma2 <- sigma2_true
-  
   
   # 1. Update Lambda
   for(j in 1:J) {

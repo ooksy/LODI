@@ -48,7 +48,7 @@ for(t in 1:T){
 }
 
 # MCMC setting 
-n_sim <- 10000 # 적은 iteration 해보고 50000으로
+n_sim <- 1000 # 적은 iteration 해보고 50000으로
 burn_in <- n_sim/2
 thin <- 2
 keep <- seq(burn_in + 1, n_sim, by = thin)
@@ -94,39 +94,44 @@ for(s in 2:n_sim){
   # 1. sampling lambda
   for(j in 1:J){
 
-    eta_term <- 0
-    mean_term <- 0
+      # idx_seq <- 1:min(K, j)
+      # 
+      # eta_term <- 0
+      # mean_term <- 0
+      # 
+      # for(t in 1:T){
+      #   eta_term <- eta_term + tcrossprod(matrix(eta_sam[idx_seq,,t,s-1], nrow = length(idx_seq)))
+      #   mean_term <- mean_term + eta_sam[idx_seq,,t,s-1]%*%y[,j,t]
+      # }
+      # 
+      # eta_term <- eta_term/sigma2_sam[s-1]
+      # mean_term <- mean_term/sigma2_sam[s-1]
+      # 
+      # lambda_mean <- solve(diag(length(idx_seq)) + eta_term)%*%mean_term
+      # lambda_cov <- solve(diag(length(idx_seq)) + eta_term)
+      # lambda_cov[lower.tri(lambda_cov)] <- t(lambda_cov)[lower.tri(lambda_cov)]
+    
+      idx_seq <- 1:min(K, j) 
+      eta_j <- aperm(eta_sam[,,,s-1], c(2,3,1))
+      eta_j <- matrix(eta_j[,,idx_seq], nrow = n*T)
+      y_j <- matrix(y[,j,], nrow = n*T)
+      
+      lambda_cov <- crossprod(eta_j)/sigma2_sam[s-1] + diag(1, length(idx_seq))
+      lambda_cov <- solve(lambda_cov)
+      lambda_mean <- lambda_cov %*% crossprod(eta_j, y_j)/sigma2_sam[s-1]
 
-    for(t in 1:T){
-      eta_term <- eta_term + eta_sam[,,t,s-1]%*%t(eta_sam[,,t,s-1])
-      mean_term <- mean_term + eta_sam[,,t,s-1]%*%y[,j,t]
-    }
 
-    eta_term <- eta_term/sigma2_sam[s-1]
-    mean_term <- mean_term/sigma2_sam[s-1]
-
-    lambda_mean <- solve(diag(K) + eta_term)%*%mean_term
-    lambda_cov <- solve(diag(K) + eta_term)
-    lambda_cov[lower.tri(lambda_cov)] <- t(lambda_cov)[lower.tri(lambda_cov)]
-
-    # jth column sample
-    lambda_sam[,j,s] <- rmvnorm(1 , mean =  lambda_mean, sigma = lambda_cov)
-
-    # positive diagonal
-    idx <- min(K, j)
-    if(idx == j){
-      lambda_sam[idx,j,s] <- rtruncnorm(1, a = 0, b = Inf, mean = lambda_mean[j], sd = sqrt(lambda_cov[j,j]))
-    }
-
-    # 0s in upper triangular
-    for(k in 1:K){
-      if(j < k){
-        lambda_sam[k,j,s] <- 0
+      for(idx_k in seq_along(idx_seq)){
+        k <- idx_seq[idx_k]
+        if(k < j){
+          lambda_sam[k,j,s] <- rnorm(1, mean = lambda_mean[idx_k], sd = sqrt(lambda_cov[idx_k,idx_k]))
+        } else if(k == j){
+          lambda_sam[k,j,s] <- rtruncnorm(1, a = 0, b = Inf, mean = lambda_mean[idx_k], sd = sqrt(lambda_cov[idx_k,idx_k]))
+        }
       }
-    }
-
   }
-  
+
+
   # 2. sampling eta (FFBS)
   # forward filtering
   for(i in 1:n){
@@ -239,7 +244,7 @@ for(s in 2:n_sim){
 
 }
 
-save.image("C:/Users/SEC/Desktop/research/25summer/may5th/testing_constraints.RData")
+# save.image("C:/Users/SEC/Desktop/research/25summer/may5th/testing_constraints2.RData")
 
 # remove burn-in period & thinning
 lambda_sam <- lambda_sam[,,keep]
