@@ -7,7 +7,7 @@ library(gridtext)
 library(truncnorm)
 
 # set seed
-set.seed(123)
+set.seed(124)
 
 # Data generation
 # initial setting
@@ -48,7 +48,7 @@ for(t in 1:T){
 }
 
 # MCMC setting 
-n_sim <- 500 # 적은 iteration 해보고 50000으로
+n_sim <- 2000 # 적은 iteration 해보고 50000으로
 burn_in <- n_sim/2
 thin <- 2
 keep <- seq(burn_in + 1, n_sim, by = thin)
@@ -60,10 +60,10 @@ lambda_sam[,,1] <- array(rnorm(K*J), dim = c(K, J))
 eta_sam <- array(0, dim=c(K, n, T, n_sim))
 eta_sam[,,,1] <- array(rnorm(K*n*T), dim = c(K,n,T))
 
-m_vec <- matrix(0, nrow = T, ncol = K)  # filter
-C_mat <- array(0, dim=c(K,K,T))         # filter
-a_vec <- matrix(0, nrow = T, ncol = K)  # pred
-R_mat <- array(0, dim=c(K,K,T))         # pred
+# m_vec <- matrix(0, nrow = T, ncol = K)  # filter
+# C_mat <- array(0, dim=c(K,K,T))         # filter
+# a_vec <- matrix(0, nrow = T, ncol = K)  # pred
+# R_mat <- array(0, dim=c(K,K,T))         # pred
 
 rho_sam <- numeric(n_sim)
 rho_sam[1] <- 0.5
@@ -86,9 +86,9 @@ sig_b <- 1
 for(s in 2:n_sim){
   # lambda_sam[,,s-1] <- lambda_sam[,,s] <- t(lambda)
   # eta_sam[,,,s-1] <- eta_sam[,,,s] <- eta
-  rho_sam[s-1] <- rho_sam[s] <- rho
-  Q_sam[s-1] <- Q_sam[s] <- Q
-  sigma2_sam[s-1] <- sigma2_sam[s] <- sigma2
+  # rho_sam[s-1] <- rho_sam[s] <- rho
+  # Q_sam[s-1] <- Q_sam[s] <- Q
+  # sigma2_sam[s-1] <- sigma2_sam[s] <- sigma2
   
   
   # 1. sampling lambda
@@ -118,7 +118,14 @@ for(s in 2:n_sim){
   # 2. sampling eta (FFBS)
   # forward filtering
   for(i in 1:n){
-
+    
+    m_vec <- matrix(0, nrow = T, ncol = K)  # filter
+    C_mat <- array(0, dim=c(K,K,T))         # filter
+    a_vec <- matrix(0, nrow = T, ncol = K)  # pred
+    R_mat <- array(0, dim=c(K,K,T))         # pred
+    
+    
+    # initialization
     m_vec[1,] <- rep(0, K)
     C_mat[,,1] <- diag(K)
 
@@ -126,14 +133,9 @@ for(s in 2:n_sim){
       if(t > 1){
         a_vec[t,] <- rho_sam[s-1]*m_vec[(t-1),]
         R_mat[,,t] <- (rho_sam[s-1]^2)*C_mat[,,(t-1)] + Q_sam[s-1]*diag(K)
-
-        R_mat_inv <- solve(R_mat[,,t])
-        # R_mat_inv[lower.tri(R_mat_inv)] <- t(R_mat_inv)[lower.tri(R_mat_inv)]
       } else {
         a_vec[t,] <- m_vec[1,]
         R_mat[,,t] <- C_mat[,,1]
-
-        R_mat_inv <- solve(R_mat[,,t])
       }
 
 
@@ -153,7 +155,7 @@ for(s in 2:n_sim){
 
   # backward sampling
   for(t in (T-1):1){
-      A_t <- rho_sam[s-1] * C_mat[,,t] %*% solve(R_mat[,,(t+1)])
+      A_t <- rho_sam[s-1] * C_mat[,,t] %*% solve(rho_sam[s-1]^2 * C_mat[,,t] + Q_sam[s-1]*diag(K))
       sm_mean <- m_vec[t,] + A_t %*% (eta_sam[,i,(t+1),s] - rho_sam[s-1]*m_vec[t,])
       sm_cov <- C_mat[,,t] - A_t %*% (rho_sam[s-1]*C_mat[,,t])
 
@@ -166,42 +168,42 @@ for(s in 2:n_sim){
 
 
 
-  # # 3. sampling rho
-  # # eta time varying equation의 Q도 고려해줘야함
-  # 
-  # rho_mean <- 0
-  # rho_var <- 0
-  # 
-  # for(i in 1:n){
-  #   for(t in 2:T){
-  #     rho_var <- rho_var + as.numeric((t(eta_sam[,i,t-1,s]) %*% eta_sam[,i,t-1,s]))
-  #   }
-  # }
-  # 
-  # for(i in 1:n){
-  #   for(t in 2:T){
-  #     rho_mean <- rho_mean + as.numeric((t(eta_sam[,i,t-1,s]) %*% eta_sam[,i,t,s]))
-  #   }
-  # }
-  # 
-  # var_rho <- 1/rho_var
-  # mean_rho <- rho_mean * var_rho
-  # var_rho <- Q_sam[s-1]/rho_var
-  # 
-  # 
-  # rho_sam[s] <- rtruncnorm(1, a = 0, b = Inf, mean = mean_rho, sd = sqrt(var_rho))
+  # 3. sampling rho
+  # eta time varying equation의 Q도 고려해줘야함
+
+  rho_mean <- 0
+  rho_var <- 0
+
+  for(i in 1:n){
+    for(t in 2:T){
+      rho_var <- rho_var + as.numeric((t(eta_sam[,i,t-1,s]) %*% eta_sam[,i,t-1,s]))
+    }
+  }
+
+  for(i in 1:n){
+    for(t in 2:T){
+      rho_mean <- rho_mean + as.numeric((t(eta_sam[,i,t-1,s]) %*% eta_sam[,i,t,s]))
+    }
+  }
+
+  var_rho <- 1/rho_var
+  mean_rho <- rho_mean * var_rho
+  var_rho <- Q_sam[s-1]/rho_var
 
 
-  # # 4. sampling Q
-  # resid <- eta_sam[,,2:T,s] - rho_sam[s]*eta_sam[,,1:(T-1),s]
-  # 
-  # Q_sam[s] <- 1/rgamma(1, sig_a_Q + (n*(T-1)*K/2), sig_b_Q + (sum(resid^2)/2))
+  rho_sam[s] <- rtruncnorm(1, a = 0, b = Inf, mean = mean_rho, sd = sqrt(var_rho))
+
+
+  # 4. sampling Q
+  resid <- eta_sam[,,2:T,s] - rho_sam[s]*eta_sam[,,1:(T-1),s]
+
+  Q_sam[s] <- 1/rgamma(1, sig_a_Q + (n*(T-1)*K/2), sig_b_Q + (sum(resid^2)/2))
 
   # 5. sampling sigma2
-  # # method 3
-  # # residual <- y - aperm(apply(eta_sam[,,,s], 2:3, function(x) t(lambda_sam[,,s]) %*% x), c(2,1,3))
-  # # ssr <- sum(residual^2)
-  # # sigma2_sam[s] <- 1/rgamma(1, sig_a + (n*J*T/2), sig_b + ssr/2)
+  # method 3
+  residual <- y - aperm(apply(eta_sam[,,,s], 2:3, function(x) t(lambda_sam[,,s]) %*% x), c(2,1,3))
+  ssr <- sum(residual^2)
+  sigma2_sam[s] <- 1/rgamma(1, sig_a + (n*J*T/2), sig_b + ssr/2)
   
   if(s %% 100 == 0) cat("Iteration:", s, "\n")
 
@@ -246,10 +248,19 @@ ht2 <- Heatmap(estimated, column_order = colnames(estimated), row_order = rownam
 ht_list <- ht1 + ht2
 draw(ht_list, column_title = "Lambda")
 
+
+ts.plot(lambda_sam[1,1,])
+ts.plot(lambda_sam[2,2,])
+ts.plot(lambda_sam[3,3,])
+mean(lambda_sam[1,1,])
+mean(lambda_sam[2,2,])
+mean(lambda_sam[3,3,])
+
+
 # 2. eta
 col_fun <- colorRamp2(c(-2, 0, 2), c("blue", "white", "red"))
-true <- t(eta[,,2])
-estimated <- t(eta_mean[,,2])
+true <- t(eta[,,3])
+estimated <- t(eta_mean[,,3])
 compare_mat <- true
 rownames(compare_mat) <- paste0("row", 1:n)
 colnames(compare_mat) <- paste0("column", 1:K)
