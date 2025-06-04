@@ -1,8 +1,10 @@
+rm(list = ls())
+
 library(mvtnorm)   
 library(truncnorm) 
 library(circlize)
 library(ComplexHeatmap)
-set.seed(124)
+set.seed(123) # seed = 124, 125 : there is a similar problem(sign-changing problem)
 N <- 20    # Number of subjects
 T <- 3      # Time points
 J <- 30     # Observed variables
@@ -185,7 +187,7 @@ for(iter in 1:n_iter) {
   if(iter %% 100 == 0) cat("Iteration:", iter, "\n")
 }
 
-save.image("C:/Users/SEC/Desktop/research/25summer/may5th/MultiTimeTest.RData")
+# save.image("C:/Users/SEC/Desktop/research/25summer/may5th/MultiTimeTest.RData")
 
 # ----------------------
 # Posterior Analysis
@@ -212,6 +214,8 @@ plot(rho_samples, type="l", main="Trace plot: rho")
 abline(h = rho_true, col = 'red')
 plot(Q_samples, type="l", main="Trace plot: Q")
 abline(h = Q_true, col = 'red')
+par(mfrow=c(1,1))
+ts.plot(Lambda_samples[,3,3])
 
 # 3. Heatmap
 # Lambda
