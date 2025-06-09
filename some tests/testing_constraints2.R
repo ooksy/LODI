@@ -7,7 +7,7 @@ library(gridtext)
 library(truncnorm)
 
 # set seed
-set.seed(124)
+set.seed(123) # 124, 126 good 123, 125, 127, 128, 129, 130, 131 not good
 
 # Data generation
 # initial setting
@@ -40,6 +40,8 @@ for(t in 2:T){
   eta[,,t] <- rho*eta[,,t-1] + t(rmvnorm(n, mean = rep(0, K), sigma = diag(Q, K)))
 }
 
+
+
 # data y
 y <- array(0, dim=c(n, J, T))
 
@@ -48,7 +50,7 @@ for(t in 1:T){
 }
 
 # MCMC setting 
-n_sim <- 2000 # 적은 iteration 해보고 50000으로
+n_sim <- 20000 # 적은 iteration 해보고 50000으로
 burn_in <- n_sim/2
 thin <- 2
 keep <- seq(burn_in + 1, n_sim, by = thin)
@@ -194,10 +196,10 @@ for(s in 2:n_sim){
   rho_sam[s] <- rtruncnorm(1, a = 0, b = Inf, mean = mean_rho, sd = sqrt(var_rho))
 
 
-  # 4. sampling Q
-  resid <- eta_sam[,,2:T,s] - rho_sam[s]*eta_sam[,,1:(T-1),s]
-
-  Q_sam[s] <- 1/rgamma(1, sig_a_Q + (n*(T-1)*K/2), sig_b_Q + (sum(resid^2)/2))
+  # # 4. sampling Q
+  # resid <- eta_sam[,,2:T,s] - rho_sam[s]*eta_sam[,,1:(T-1),s]
+  # 
+  # Q_sam[s] <- 1/rgamma(1, sig_a_Q + (n*(T-1)*K/2), sig_b_Q + (sum(resid^2)/2))
 
   # 5. sampling sigma2
   # method 3
@@ -209,7 +211,8 @@ for(s in 2:n_sim){
 
 }
 
-# save.image("C:/Users/SEC/Desktop/research/25summer/may5th/testing_constraints2.RData")
+# save.image("C:/Users/SEC/Desktop/research/25summer/may5th/seed128nsim20000.RData")
+# load("C:/Users/SEC/Desktop/research/25summer/may5th/seed127nsim20000.RData")
 
 # remove burn-in period & thinning
 lambda_sam <- lambda_sam[,,keep]
@@ -242,32 +245,33 @@ compare_mat <- true
 rownames(compare_mat) <- paste0("row", 1:J)
 colnames(compare_mat) <- paste0("column", 1:K)
 ht1 <- Heatmap(true, column_order = colnames(true), row_order = rownames(true),
-               row_title = "OTU", column_title = "True", col = col_fun)
+               row_title = "OTU J", column_title = "True", col = col_fun)
 ht2 <- Heatmap(estimated, column_order = colnames(estimated), row_order = rownames(estimated),
-               row_title = "OTU", column_title = "Estimated", col = col_fun)
+               row_title = "OTU J", column_title = "Estimated", col = col_fun)
 ht_list <- ht1 + ht2
 draw(ht_list, column_title = "Lambda")
 
-
+par(mfrow=c(3,1))
 ts.plot(lambda_sam[1,1,])
+abline(h=1, col = "red", )
 ts.plot(lambda_sam[2,2,])
+abline(h=1, col = "red", )
 ts.plot(lambda_sam[3,3,])
-mean(lambda_sam[1,1,])
-mean(lambda_sam[2,2,])
-mean(lambda_sam[3,3,])
+abline(h=1, col = "red", )
+
 
 
 # 2. eta
 col_fun <- colorRamp2(c(-2, 0, 2), c("blue", "white", "red"))
-true <- t(eta[,,3])
-estimated <- t(eta_mean[,,3])
+true <- t(eta[,,1])
+estimated <- t(eta_mean[,,1])
 compare_mat <- true
 rownames(compare_mat) <- paste0("row", 1:n)
 colnames(compare_mat) <- paste0("column", 1:K)
 ht1 <- Heatmap(true, column_order = colnames(true), row_order = rownames(true),
-               row_title = "OTU", column_title = "True", col = col_fun)
+               row_title = "subject n", column_title = "True", col = col_fun)
 ht2 <- Heatmap(estimated, column_order = colnames(estimated), row_order = rownames(estimated),
-               row_title = "OTU", column_title = "Estimated", col = col_fun)
+               row_title = "subject n", column_title = "Estimated", col = col_fun)
 ht_list <- ht1 + ht2
 draw(ht_list, column_title = "Eta")
 
@@ -321,4 +325,30 @@ ht2 <- Heatmap(estimated, column_order = colnames(estimated), row_order = rownam
                row_title = "OTU", column_title = "Estimated")
 ht_list <- ht1 + ht2
 draw(ht_list, column_title = "Cov")
+
+
+
+Cov_array <- array(NA, dim = c(J, J, dim(lambda_sam)[3]))
+for (i in 1:(dim(lambda_sam)[3])) {
+  Cov_array[ , , i] <- 1/(1-rho_sam[i]^2) * crossprod(lambda_sam[,,i]) + Q_sam[i] * diag(J)
+}
+# Compute the posterior median across iterations
+Cov_median <- apply(Cov_array, c(1, 2), median)
+true <- 1/(1-rho^2) *tcrossprod(lambda)+ Q * diag(J)
+
+rownames(true) <- paste0("row",1:J)
+colnames(true) <- paste0("column",1:J)
+
+rownames(Cov_median) <- paste0("row",1:J)
+colnames(Cov_median) <- paste0("column",1:J)
+
+compare_mat <- true
+compare_mat[upper.tri(compare_mat)] <- Cov_median[upper.tri(Cov_median)]
+compare_mat
+rownames(compare_mat) <- paste0("row", 1:J)
+colnames(compare_mat) <- paste0("column", 1:J)
+
+Heatmap(compare_mat, column_order = colnames(compare_mat), row_order = rownames(compare_mat),
+        row_title = "lower : true", column_title = gt_render("Cov(Y_it) <br> upper : estimated"), name = "mat") # diagonal part is true value, lower - true, upper - posterior estimate
+
 

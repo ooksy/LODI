@@ -1,5 +1,5 @@
 # data
-mouse <- read.csv("microbiome_modified.csv")
+mouse <- read.csv("data/microbiome_modified.csv")
 mouse$Genotype <- factor(mouse$Genotype, levels = c("WT", "ACKG", "ACK", "HACKG", "HACK"))
 mouse$Grouped.genotype <- factor(mouse$Grouped.genotype, levels = c("WT", "ACK/G", "HACK/G"), ordered = T)
 mouse$Timepoint <- factor(mouse$Timepoint, levels = c("W0", "W1", "W3", "W7", "W11", "W15", "W19"))

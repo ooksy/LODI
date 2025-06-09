@@ -4,13 +4,39 @@ library(mvtnorm)
 library(truncnorm) 
 library(circlize)
 library(ComplexHeatmap)
-set.seed(124) # seed = 124, 125 : there is a similar problem(sign-changing problem)
+set.seed(123) # seed = 124, 125 : there is a similar problem(sign-changing problem)
 N <- 20    # Number of subjects
 T <- 3      # Time points
 J <- 30     # Observed variables
 K <- 3      # Latent factors
 
 # True parameters
+r_true <- array(0, dim = c(N, T, J))
+r_true[,,] <- matrix(runif(N*T, min = 0, max = 2), nrow = N, ncol = T)
+
+# alpha simple case
+alpha_g_true <- matrix(0, nrow = N, ncol = J)
+alpha_true <- array(0, dim = c(N, T, J))
+
+alpha_g_true[,] <- sample(1:3, size = N*J, replace = T, prob = c(0.5, 0.3, 0.2))
+alpha_mean <- c(-4, 2, 8)
+alpha_var <- c(0.5, 1, 2)
+phi_true <- 0.8
+V <- 0.2
+
+for(i in 1:N){
+  for(j in 1:J){
+    g_idx <- alpha_g_true[i,j]
+    alpha_true[i,1,j] <- rnorm(1, alpha_mean[g_idx], alpha_var[g_idx])
+  }
+}
+
+for(t in 2:T){
+  alpha_true[,t,] <- phi_true * alpha_true[,t-1,] + rmvnorm(N, mean = rep(0,J), sigma = diag(V, J))
+}
+
+
+
 Lambda_true <- matrix(0, nrow = J, ncol = K)
 for(j in 1:J) {
   for(k in 1:min(j, K)) {
@@ -39,9 +65,15 @@ for(i in 1:N) {
 Y <- array(0, dim = c(N, T, J))
 for(i in 1:N) {
   for(t in 1:T) {
-    Y[i, t, ] <- Lambda_true %*% eta_true[i, t, ] + rnorm(J, sd = sqrt(sigma2_true))
+    Y[i, t, ] <- r_true[i, t,] + alpha_true[i, t,] + Lambda_true %*% eta_true[i, t, ] + rnorm(J, sd = sqrt(sigma2_true))
   }
 }
+
+Y_count <- floor(exp(Y))
+Y_count[,1,]
+Y_count[,2,]
+Y_count[,3,]
+
 
 # ----------------------
 # MCMC Setup
