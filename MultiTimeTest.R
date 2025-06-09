@@ -1,20 +1,22 @@
 rm(list = ls())
 
-library(mvtnorm)   
+library(mvtnorm)
+library(MCMCpack)
 library(truncnorm) 
 library(circlize)
 library(ComplexHeatmap)
-set.seed(123) # seed = 124, 125 : there is a similar problem(sign-changing problem)
-N <- 20    # Number of subjects
+
+set.seed(123) 
+N <- 20     # Number of subjects
 T <- 3      # Time points
 J <- 30     # Observed variables
 K <- 3      # Latent factors
+L <- 30     # Dirichlet mixture group
 
 # True parameters
 r_true <- array(0, dim = c(N, T, J))
 r_true[,,] <- matrix(runif(N*T, min = 0, max = 2), nrow = N, ncol = T)
 
-# alpha simple case
 alpha_g_true <- matrix(0, nrow = N, ncol = J)
 alpha_true <- array(0, dim = c(N, T, J))
 
@@ -22,7 +24,11 @@ alpha_g_true[,] <- sample(1:3, size = N*J, replace = T, prob = c(0.5, 0.3, 0.2))
 alpha_mean <- c(-4, 2, 8)
 alpha_var <- c(0.5, 1, 2)
 phi_true <- 0.8
-V <- 0.2
+V_true <- 0.2
+# weight_true
+# v_true
+# alpha_mu_true
+# alpha_sig2_true
 
 for(i in 1:N){
   for(j in 1:J){
@@ -32,7 +38,7 @@ for(i in 1:N){
 }
 
 for(t in 2:T){
-  alpha_true[,t,] <- phi_true * alpha_true[,t-1,] + rmvnorm(N, mean = rep(0,J), sigma = diag(V, J))
+  alpha_true[,t,] <- phi_true * alpha_true[,t-1,] + rmvnorm(N, mean = rep(0,J), sigma = diag(V_true, J))
 }
 
 
@@ -62,17 +68,17 @@ for(i in 1:N) {
 }
 
 # Simulate observed data
-Y <- array(0, dim = c(N, T, J))
+Y_true <- array(0, dim = c(N, T, J))
 for(i in 1:N) {
   for(t in 1:T) {
-    Y[i, t, ] <- r_true[i, t,] + alpha_true[i, t,] + Lambda_true %*% eta_true[i, t, ] + rnorm(J, sd = sqrt(sigma2_true))
+    Y_true[i, t, ] <- r_true[i, t,] + alpha_true[i, t,] + Lambda_true %*% eta_true[i, t, ] + rnorm(J, sd = sqrt(sigma2_true))
   }
 }
 
-Y_count <- floor(exp(Y))
-Y_count[,1,]
-Y_count[,2,]
-Y_count[,3,]
+Y_count_true <- floor(exp(Y_true))
+Y_count_true[,1,]
+Y_count_true[,2,]
+Y_count_true[,3,]
 
 
 # ----------------------
@@ -80,6 +86,12 @@ Y_count[,3,]
 # ----------------------
 # Priors
 tau2 <- 1          # Prior variance for Lambda
+c_prior <- 1
+alpha_prior_mean <- 0
+alpha_prior_var <- 4^2
+alpha_a0 <- 2; alpha_b0 <- 1
+phi_prior_mean <- 0
+phi_prior_var <- 1
 a0 <- 2; b0 <- 1 # Inverse-Gamma for sigma2
 rho_prior_mean <- 0  # Prior mean for rho (truncated normal)
 rho_prior_var <- 1   # Prior variance for rho (truncated normal)
@@ -87,6 +99,15 @@ Q_prior_shape <- 2     # Inverse-Gamma shape for Q
 Q_prior_rate <- 1      # Inverse-Gamma rate for Q
 
 # Initialize parameters
+Y <- array(0, c(N, T, J))
+r <- array(0, c(N, T, J))
+alpha <- matrix(0, c(N, T, J))
+alpha_g <- matrix(sample(1:3, N*J, replace = T), N, J)
+weight <- rdirichlet(1, rep(1, L))
+v <- rep(0.5, (L-1))
+alpha_mu <- rep(0, L)
+alpha_sig2 <- rep(1, L)
+V <- 1
 Lambda <- matrix(0, J, K)
 sigma2 <- 1
 eta <- array(rnorm(N*T*K), c(N, T, K))
@@ -100,6 +121,16 @@ thin <- 2
 keep <- seq(burn_in + 1, n_iter, by = thin)
 
 # Storage
+Y_samples <- array(NA, dim = c(length(keep), N, T, J))
+r_samples <- array(NA, dim = c(length(keep), N, T, J))
+alpha_samples <- array(NA, dim = c(length(keep), N, T, J))
+alpha_g_samples <- array(NA, dim = c(length(keep), N, J))
+weight_samples <- array(NA, dim = c(length(keep), L))
+alpha_mu_samples <- array(NA, dim = c(length(keep), L))
+alpha_sig2_samples <- array(NA, dim = c(length(keep), L))
+v_samples <- array(NA, dim = c(length(keep), (L-1)))
+phi_samples <- numeric(length(keep))
+V_samples <- numeric(length(keep))
 Lambda_samples <- array(NA, dim = c(length(keep), J, K))
 sigma2_samples <- numeric(length(keep))
 eta_samples <- array(NA, dim = c(length(keep), N, T, K))
@@ -160,6 +191,72 @@ ffbs <- function(y, Lambda, rho, Q, sigma2) {
 # MCMC Loop
 # ----------------------
 for(iter in 1:n_iter) {
+  # Sampling latent variable Y
+  for(i in 1:N){
+    for(j in 1:J){
+      for(t in 1:T){
+        if(Y_count_true[i,t,j]==0){
+          Y[i,t,j] <- rtruncnorm(1, a = -Inf, b = 0,
+                                         mean = r[i,t,j] + alpha[i,t,j] + Lambda[j,] %*% eta[i,t,], sd = sqrt(sigma2))
+        } else {
+          Y[i,t,j] <- rtruncnorm(1, a=log(Y_count_true[i,t,j]), b=log(Y_count_true[i,t,j]+1),
+                                         mean = r[i,t,j] + alpha[i,t,j] + Lambda[j,] %*% eta[i,t,], sd = sqrt(sigma2)) 
+        }
+      }
+    }
+  }
+  
+  # Update r
+  for(i in 1:N){
+    for(t in 1:T){
+      r_res <- Y[i,t,] - alpha[i,t,] + Lambda %*% eta[i,t,]
+      r_ssr <- sum(r_res^2)
+      r_mean <- solve(J/sigma2)*(r_ssr/sigma2)
+      r_var <- solve(J/sigma2)
+      r[i,t,] <- rtruncnorm(1, a=0, mean = r_mean, sd = sqrt(r_var))
+    }
+  }
+  
+  # Update alpha
+  # Update alpha group
+  for(i in 1:N){
+    for(j in 1:J){
+      group_prob <- weight * pnorm(alpha[i,1,j], mean = alpha_mu, sd = sqrt(alpha_sig2))
+      group_prob <- group_prob / sum(group_prob)
+      alpha_g[i,j] <- sample(1:L, 1, prob = group_prob)
+    }
+  }
+  
+  # Update alpha - FFBS
+  
+  
+  # Update alpha weight
+  for(l in 1:(L-1)){
+    v[l] <- rbeta(1 + sum(alpha_g == l), c_prior + sum(alpha_g > l))
+  }
+  
+  # Update alpha_mu
+  for(l in 1:L){
+    alpha_mu_var <- solve(1/alpha_prior_var + sum(alpha_g == l)/alpha_sig2[l])
+    alpha_mu_mean <- alpha_mu_var * (alpha_prior_mean/alpha_prior_var + sum(alpha[,1,][alpha_g == l])/alpha_sig2[l])
+    alpha_mu[l] <- rnorm(1, mean =alpha_mu_mean , sd = sqrt(alpha_mu_var))
+  }
+  
+  # Update alpha_sig2
+  for(l in 1:L){
+    alpha_sig2[l] <- 1/rgamma(alpha_a0 + sum(alpha_g == l)/2,
+                              alpha_b0 + sum((alpha[,1,][alpha_g == l] - alpha_mu[l])^2)/2)
+  }
+  
+  # Update phi
+  alpha_prev <- alpha[,1:(T-1),]
+  alpha_curr <- alpha[,2:T,]
+  SS_prev <- alpha_prev^2
+  SS_pcur <- alpha_prev * alpha_curr
+  phi_var <- 1 / (1/phi_prior_var + SS_prev/V)
+  phi_mean <- phi_var * (phi_prior_mean/phi_prior_var + SS_pcur/V)
+  phi <- rtruncnorm(1, a=-1, b=1, mean = phi_mean, sd = sqrt(phi_var))
+  
   
   # 1. Update Lambda
   for(j in 1:J) {
