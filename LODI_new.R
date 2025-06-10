@@ -85,7 +85,6 @@ Y_count_true[,3,]
 # MCMC Setup
 # ----------------------
 # Priors
-tau2 <- 1          # Prior variance for Lambda
 c_prior <- 1
 alpha_prior_mean <- 0
 alpha_prior_var <- 4^2
@@ -140,7 +139,7 @@ Q_samples <- numeric(length(keep))
 # ----------------------
 # FFBS Implementation
 # ----------------------
-ffbs_alpha <- function(alpha, alpha_g, alpha_mu, alpha_sig2, phi, V, Y, r, Lambda, eta){
+ffbs_alpha <- function(alpha_g, alpha_mu, alpha_sig2, phi, V, Y, r, Lambda, eta){
   Time <- dim(Y)[1]
   
   # Kalman filter
@@ -156,15 +155,15 @@ ffbs_alpha <- function(alpha, alpha_g, alpha_mu, alpha_sig2, phi, V, Y, r, Lambd
   # Forward Filter
   for(t in 1:Time){
     if(t > 1){
-      a <- phi * m[t-1]
-      R <- (phi^2) * C[t-1] + V
+      a[t] <- phi * m[t-1]
+      R[t] <- (phi^2) * C[t-1] + V
     } else {
-      a <- m[1]
-      R <- C[1]
+      a[t] <- m[t]
+      R[t] <- C[t]
     }
     
     k_gain <- R[t]*solve(R[t]+sigma2)
-    m[t] <- a[t] + k_gain*(Y[t] - r[t] - alpha[t] - Lambda %*% eta[t,])
+    m[t] <- a[t] + k_gain*(Y[t] - r[t] - a[t] - Lambda %*% eta[t,])
     C[t] <- R[t] - k_gain*R[t]
   }
   
@@ -173,7 +172,7 @@ ffbs_alpha <- function(alpha, alpha_g, alpha_mu, alpha_sig2, phi, V, Y, r, Lambd
   
   # Backwards sampling
   for(t in (Time-1):1){
-    m[t] <- solve(phi^2/V + 1/C[t]) * (phi*alpha[t+1]/V + m[t]/C[t])
+    m[t] <- solve(phi^2/V + 1/C[t]) * (phi*alpha_st[t+1]/V + m[t]/C[t])
     C[t] <- solve(phi^2/V + 1/C[t])
       
     alpha_st[t] <- rnorm(1, mean = m[t], sd = sqrt(C[t])) 
@@ -182,7 +181,7 @@ ffbs_alpha <- function(alpha, alpha_g, alpha_mu, alpha_sig2, phi, V, Y, r, Lambd
   return(alpha_st)
 }
 
-ffbs <- function(y, Lambda, rho, Q, sigma2) {
+ffbs <- function(y, r, alpha, Lambda, rho, Q, sigma2) {
   Time <- dim(y)[1]
   K <- ncol(Lambda)
   
@@ -207,7 +206,7 @@ ffbs <- function(y, Lambda, rho, Q, sigma2) {
     
     S <- Lambda %*% Sigma_pred[t,,] %*% t(Lambda) + diag(sigma2, J)
     K_gain <- Sigma_pred[t,,] %*% t(Lambda) %*% solve(S)
-    resid <- y[t,] - Lambda %*% mu_pred[t,]
+    resid <- y[t,] - r[t,] - alpha[t,] - Lambda %*% mu_pred[t,]
     
     mu_filt[t,] <- mu_pred[t,] + K_gain %*% resid
     Sigma_filt[t,,] <- (diag(K) - K_gain %*% Lambda) %*% Sigma_pred[t,,]
@@ -314,13 +313,13 @@ for(iter in 1:n_iter) {
   phi <- rtruncnorm(1, a=-1, b=1, mean = phi_mean, sd = sqrt(phi_var))
   
   
-  # 1. Update Lambda
+  # Update Lambda
   for(j in 1:J) {
     k_indices <- 1:min(j, K)
     E_j <- matrix(eta[,,k_indices], nrow = N*T)
-    y_j <- c(Y[,,j])
+    y_j <- c(Y[,,j] - r[,,j] - alpha[,,j])
 
-    V_j_inv <- crossprod(E_j)/sigma2 + diag(1/tau2, length(k_indices))
+    V_j_inv <- crossprod(E_j)/sigma2 + diag(1, length(k_indices))
     V_j <- solve(V_j_inv)
     m_j <- V_j %*% crossprod(E_j, y_j)/sigma2
 
@@ -334,28 +333,28 @@ for(iter in 1:n_iter) {
     }
   }
   
-  # 2. Update eta (FFBS)
+  # Update eta (FFBS)
   for(i in 1:N) {
-    eta[i,,] <- ffbs(Y[i,,], Lambda, rho, Q, sigma2)
+    eta[i,,] <- ffbs(Y[i,,], r[i,,], alpha[i,,], Lambda, rho, Q, sigma2)
   }
   
-  # 3. Update rho
+  # Update rho
   eta_prev <- eta[,1:(T-1),]
   eta_curr <- eta[,2:T,]
   SS_xx <- sum(eta_prev^2)
   SS_xy <- sum(eta_prev * eta_curr)
-  rho_mean <- (SS_xy + rho_prior_mean/rho_prior_var) / (SS_xx + 1/rho_prior_var)
-  rho_sd <- sqrt(Q / (SS_xx + 1/rho_prior_var))
+  rho_mean <- (SS_xy/Q + rho_prior_mean/rho_prior_var) / (SS_xx/Q + 1/rho_prior_var)
+  rho_sd <- sqrt(1 / (SS_xx/Q + 1/rho_prior_var))
   rho <- rtruncnorm(1, a=-1, b=1, mean=rho_mean, sd=rho_sd)
   
-  # 4. Update Q
+  # Update Q
   resid <- eta[,2:T,] - rho * eta[,1:(T-1),]
   Q_shape <- Q_prior_shape + N*(T-1)*K/2
   Q_rate <- Q_prior_rate + sum(resid^2)/2
   Q <- 1/rgamma(1, shape=Q_shape, rate=Q_rate)
   
-  # 5. Update sigma2
-  residuals <- Y - aperm(apply(eta, 1:2, function(x) Lambda %*% x), c(2,3,1))
+  # Update sigma2
+  residuals <- Y - r - alpha - aperm(apply(eta, 1:2, function(x) Lambda %*% x), c(2,3,1))
   ssr <- sum(residuals^2)
   sigma2 <- 1/rgamma(1, a0 + N*T*J/2, b0 + ssr/2)
   
