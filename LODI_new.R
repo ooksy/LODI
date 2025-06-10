@@ -140,6 +140,48 @@ Q_samples <- numeric(length(keep))
 # ----------------------
 # FFBS Implementation
 # ----------------------
+ffbs_alpha <- function(alpha, alpha_g, alpha_mu, alpha_sig2, phi, V, Y, r, Lambda, eta){
+  Time <- dim(Y)[1]
+  
+  # Kalman filter
+  m <- matrix(0, Time)
+  C <- matrix(0, Time)
+  a <- matrix(0, Time)
+  R <- matrix(0, Time)
+  
+  # Initialize
+  m[1] <- alpha_mu[alpha_g]
+  C[1] <- alpha_sig2[alpha_g]
+  
+  # Forward Filter
+  for(t in 1:Time){
+    if(t > 1){
+      a <- phi * m[t-1]
+      R <- (phi^2) * C[t-1] + V
+    } else {
+      a <- m[1]
+      R <- C[1]
+    }
+    
+    k_gain <- R[t]*solve(R[t]+sigma2)
+    m[t] <- a[t] + k_gain*(Y[t] - r[t] - alpha[t] - Lambda %*% eta[t,])
+    C[t] <- R[t] - k_gain*R[t]
+  }
+  
+  alpha_st <- rep(0, Time)
+  alpha_st[Time] <- rnorm(1, mean = m[Time], sd = sqrt(C[Time]))
+  
+  # Backwards sampling
+  for(t in (Time-1):1){
+    m[t] <- solve(phi^2/V + 1/C[t]) * (phi*alpha[t+1]/V + m[t]/C[t])
+    C[t] <- solve(phi^2/V + 1/C[t])
+      
+    alpha_st[t] <- rnorm(1, mean = m[t], sd = sqrt(C[t])) 
+  }
+  
+  return(alpha_st)
+}
+
 ffbs <- function(y, Lambda, rho, Q, sigma2) {
   Time <- dim(y)[1]
   K <- ncol(Lambda)
@@ -223,17 +265,31 @@ for(iter in 1:n_iter) {
     for(j in 1:J){
       group_prob <- weight * pnorm(alpha[i,1,j], mean = alpha_mu, sd = sqrt(alpha_sig2))
       group_prob <- group_prob / sum(group_prob)
+      
+      if(all(group_prob == rep(0, L))) {group_prob <- rep(1/L, L)}
+      
       alpha_g[i,j] <- sample(1:L, 1, prob = group_prob)
     }
   }
   
   # Update alpha - FFBS
+  for(i in 1:N){
+    for(j in 1:J){
+      alpha[i,,j] <- ffbs_alpha(alpha[i,,j], alpha_g[i,j], alpha_mu, alpha_sig2, phi, V, Y[i,,j], r[i,,j], Lambda[j,], eta[i,,])
+    }
+  }
   
   
   # Update alpha weight
   for(l in 1:(L-1)){
     v[l] <- rbeta(1 + sum(alpha_g == l), c_prior + sum(alpha_g > l))
   }
+  
+  weight[1] <- v[1]
+  for(i in 2:L){
+    weight[l] <- v[l]*prod(1-v[1:(l-1)])
+  }
+  if(sum(weight[1:(L-1)]) >= 1) weight[L] <- 0 else weight[L] <- 1-sum(weight[1:(L-1)])
   
   # Update alpha_mu
   for(l in 1:L){
