@@ -17,30 +17,32 @@ L <- 30     # Dirichlet mixture group
 r_true <- array(0, dim = c(N, T, J))
 r_true[,,] <- matrix(runif(N*T, min = 0, max = 2), nrow = N, ncol = T)
 
-alpha_g_true <- matrix(0, nrow = N, ncol = J)
+
+# alpha simple group case
+# alpha_g_true[,] <- sample(1:3, size = N*J, replace = T, prob = c(0.5, 0.3, 0.2))
+# alpha_mean <- c(-4, 2, 8)
+# alpha_var <- c(0.5, 1, 2)
+
+weight_true <- rdirichlet(1, rep(1/L, L))
+alpha_mu_true <- seq(from = -4, to = 8, length = L)
+alpha_sig2_true <- seq(from = 0.1, to = 1.5, length = L)
+
+alpha_g_true <- matrix(sample(1:L, size = N*J, replace = T, prob = weight_true), nrow = N, ncol = J)
 alpha_true <- array(0, dim = c(N, T, J))
 
-alpha_g_true[,] <- sample(1:3, size = N*J, replace = T, prob = c(0.5, 0.3, 0.2))
-alpha_mean <- c(-4, 2, 8)
-alpha_var <- c(0.5, 1, 2)
 phi_true <- 0.8
 V_true <- 0.2
-# weight_true
-# v_true
-# alpha_mu_true
-# alpha_sig2_true
 
 for(i in 1:N){
   for(j in 1:J){
     g_idx <- alpha_g_true[i,j]
-    alpha_true[i,1,j] <- rnorm(1, alpha_mean[g_idx], alpha_var[g_idx])
+    alpha_true[i,1,j] <- rnorm(1, alpha_mu_true[g_idx], alpha_sig2_true[g_idx])
   }
 }
 
 for(t in 2:T){
   alpha_true[,t,] <- phi_true * alpha_true[,t-1,] + rmvnorm(N, mean = rep(0,J), sigma = diag(V_true, J))
 }
-
 
 
 Lambda_true <- matrix(0, nrow = J, ncol = K)
@@ -106,6 +108,7 @@ weight <- rdirichlet(1, rep(1, L))
 v <- rep(0.5, (L-1))
 alpha_mu <- rep(0, L)
 alpha_sig2 <- rep(1, L)
+phi <- 0.5
 V <- 1
 Lambda <- matrix(0, J, K)
 sigma2 <- 1
@@ -114,7 +117,7 @@ rho <- 0.5    # AR(1) coefficient
 Q <- 1      # AR(1) innovation variance
 
 # MCMC settings
-n_iter <- 20000
+n_iter <- 500
 burn_in <- n_iter/2
 thin <- 2
 keep <- seq(burn_in + 1, n_iter, by = thin)
@@ -127,7 +130,6 @@ alpha_g_samples <- array(NA, dim = c(length(keep), N, J))
 weight_samples <- array(NA, dim = c(length(keep), L))
 alpha_mu_samples <- array(NA, dim = c(length(keep), L))
 alpha_sig2_samples <- array(NA, dim = c(length(keep), L))
-v_samples <- array(NA, dim = c(length(keep), (L-1)))
 phi_samples <- numeric(length(keep))
 V_samples <- numeric(length(keep))
 Lambda_samples <- array(NA, dim = c(length(keep), J, K))
@@ -232,135 +234,160 @@ ffbs <- function(y, r, alpha, Lambda, rho, Q, sigma2) {
 # MCMC Loop
 # ----------------------
 for(iter in 1:n_iter) {
-  # Sampling latent variable Y
-  for(i in 1:N){
-    for(j in 1:J){
-      for(t in 1:T){
-        if(Y_count_true[i,t,j]==0){
-          Y[i,t,j] <- rtruncnorm(1, a = -Inf, b = 0,
-                                         mean = r[i,t,j] + alpha[i,t,j] + Lambda[j,] %*% eta[i,t,], sd = sqrt(sigma2))
-        } else {
-          Y[i,t,j] <- rtruncnorm(1, a=log(Y_count_true[i,t,j]), b=log(Y_count_true[i,t,j]+1),
-                                         mean = r[i,t,j] + alpha[i,t,j] + Lambda[j,] %*% eta[i,t,], sd = sqrt(sigma2)) 
-        }
-      }
-    }
-  }
+  
+  Y <- Y_true
+  # r <- r_true
+  alpha <- alpha_true
+  alpha_g <- alpha_g_true
+  weight <- weight_true
+  alpha_mu <- alpha_mu_true
+  alpha_sig2 <- alpha_sig2_true
+  phi <- phi_true
+  V <- V_true
+  Lambda <- Lambda_true
+  sigma2 <- sigma2_true
+  eta <- eta_true
+  rho <- rho_true
+  Q <- Q_true
+  
+  # # Sampling latent variable Y
+  # for(i in 1:N){
+  #   for(j in 1:J){
+  #     for(t in 1:T){
+  #       if(Y_count_true[i,t,j]==0){
+  #         Y[i,t,j] <- rtruncnorm(1, a = -Inf, b = 0,
+  #                                        mean = r[i,t,j] + alpha[i,t,j] + Lambda[j,] %*% eta[i,t,], sd = sqrt(sigma2))
+  #       } else {
+  #         Y[i,t,j] <- rtruncnorm(1, a=log(Y_count_true[i,t,j]), b=log(Y_count_true[i,t,j]+1),
+  #                                        mean = r[i,t,j] + alpha[i,t,j] + Lambda[j,] %*% eta[i,t,], sd = sqrt(sigma2)) 
+  #       }
+  #     }
+  #   }
+  # }
   
   # Update r
   for(i in 1:N){
     for(t in 1:T){
-      r_res <- Y[i,t,] - alpha[i,t,] + Lambda %*% eta[i,t,]
+      r_res <- Y[i,t,] - alpha[i,t,] - Lambda %*% eta[i,t,]
       r_ssr <- sum(r_res^2)
       r_mean <- solve(J/sigma2)*(r_ssr/sigma2)
       r_var <- solve(J/sigma2)
-      r[i,t,] <- rtruncnorm(1, a=0, mean = r_mean, sd = sqrt(r_var))
+      r[i,t,] <- rtruncnorm(1, a=0, b=3, mean = r_mean, sd = sqrt(r_var))
     }
   }
-  
-  # Update alpha
-  # Update alpha group
-  for(i in 1:N){
-    for(j in 1:J){
-      group_prob <- weight * pnorm(alpha[i,1,j], mean = alpha_mu, sd = sqrt(alpha_sig2))
-      group_prob <- group_prob / sum(group_prob)
-      
-      if(all(group_prob == rep(0, L))) {group_prob <- rep(1/L, L)}
-      
-      alpha_g[i,j] <- sample(1:L, 1, prob = group_prob)
-    }
-  }
-  
-  # Update alpha - FFBS
-  for(i in 1:N){
-    for(j in 1:J){
-      alpha[i,,j] <- ffbs_alpha(alpha[i,,j], alpha_g[i,j], alpha_mu, alpha_sig2, phi, V, Y[i,,j], r[i,,j], Lambda[j,], eta[i,,])
-    }
-  }
-  
-  
-  # Update alpha weight
-  for(l in 1:(L-1)){
-    v[l] <- rbeta(1 + sum(alpha_g == l), c_prior + sum(alpha_g > l))
-  }
-  
-  weight[1] <- v[1]
-  for(i in 2:L){
-    weight[l] <- v[l]*prod(1-v[1:(l-1)])
-  }
-  if(sum(weight[1:(L-1)]) >= 1) weight[L] <- 0 else weight[L] <- 1-sum(weight[1:(L-1)])
-  
-  # Update alpha_mu
-  for(l in 1:L){
-    alpha_mu_var <- solve(1/alpha_prior_var + sum(alpha_g == l)/alpha_sig2[l])
-    alpha_mu_mean <- alpha_mu_var * (alpha_prior_mean/alpha_prior_var + sum(alpha[,1,][alpha_g == l])/alpha_sig2[l])
-    alpha_mu[l] <- rnorm(1, mean =alpha_mu_mean , sd = sqrt(alpha_mu_var))
-  }
-  
-  # Update alpha_sig2
-  for(l in 1:L){
-    alpha_sig2[l] <- 1/rgamma(alpha_a0 + sum(alpha_g == l)/2,
-                              alpha_b0 + sum((alpha[,1,][alpha_g == l] - alpha_mu[l])^2)/2)
-  }
-  
-  # Update phi
-  alpha_prev <- alpha[,1:(T-1),]
-  alpha_curr <- alpha[,2:T,]
-  SS_prev <- alpha_prev^2
-  SS_pcur <- alpha_prev * alpha_curr
-  phi_var <- 1 / (1/phi_prior_var + SS_prev/V)
-  phi_mean <- phi_var * (phi_prior_mean/phi_prior_var + SS_pcur/V)
-  phi <- rtruncnorm(1, a=-1, b=1, mean = phi_mean, sd = sqrt(phi_var))
-  
-  
-  # Update Lambda
-  for(j in 1:J) {
-    k_indices <- 1:min(j, K)
-    E_j <- matrix(eta[,,k_indices], nrow = N*T)
-    y_j <- c(Y[,,j] - r[,,j] - alpha[,,j])
 
-    V_j_inv <- crossprod(E_j)/sigma2 + diag(1, length(k_indices))
-    V_j <- solve(V_j_inv)
-    m_j <- V_j %*% crossprod(E_j, y_j)/sigma2
-
-    for(k_idx in seq_along(k_indices)) {
-      k <- k_indices[k_idx]
-      if(k < j) {
-        Lambda[j,k] <- rnorm(1, m_j[k_idx], sqrt(V_j[k_idx,k_idx]))
-      } else if(k == j) {
-        Lambda[j,k] <- rtruncnorm(1, a=0, mean=m_j[k_idx], sd=sqrt(V_j[k_idx,k_idx]))
-      }
-    }
-  }
-  
-  # Update eta (FFBS)
-  for(i in 1:N) {
-    eta[i,,] <- ffbs(Y[i,,], r[i,,], alpha[i,,], Lambda, rho, Q, sigma2)
-  }
-  
-  # Update rho
-  eta_prev <- eta[,1:(T-1),]
-  eta_curr <- eta[,2:T,]
-  SS_xx <- sum(eta_prev^2)
-  SS_xy <- sum(eta_prev * eta_curr)
-  rho_mean <- (SS_xy/Q + rho_prior_mean/rho_prior_var) / (SS_xx/Q + 1/rho_prior_var)
-  rho_sd <- sqrt(1 / (SS_xx/Q + 1/rho_prior_var))
-  rho <- rtruncnorm(1, a=-1, b=1, mean=rho_mean, sd=rho_sd)
-  
-  # Update Q
-  resid <- eta[,2:T,] - rho * eta[,1:(T-1),]
-  Q_shape <- Q_prior_shape + N*(T-1)*K/2
-  Q_rate <- Q_prior_rate + sum(resid^2)/2
-  Q <- 1/rgamma(1, shape=Q_shape, rate=Q_rate)
-  
-  # Update sigma2
-  residuals <- Y - r - alpha - aperm(apply(eta, 1:2, function(x) Lambda %*% x), c(2,3,1))
-  ssr <- sum(residuals^2)
-  sigma2 <- 1/rgamma(1, a0 + N*T*J/2, b0 + ssr/2)
+  # # Update alpha
+  # # Update alpha group
+  # for(i in 1:N){
+  #   for(j in 1:J){
+  #     group_prob <- weight * pnorm(alpha[i,1,j], mean = alpha_mu, sd = sqrt(alpha_sig2))
+  #     group_prob <- group_prob / sum(group_prob)
+  #     
+  #     if(all(group_prob == rep(0, L))) {group_prob <- rep(1/L, L)}
+  #     
+  #     alpha_g[i,j] <- sample(1:L, 1, prob = group_prob)
+  #   }
+  # }
+  # 
+  # # Update alpha - FFBS
+  # for(i in 1:N){
+  #   for(j in 1:J){
+  #     alpha[i,,j] <- ffbs_alpha(alpha[i,,j], alpha_g[i,j], alpha_mu, alpha_sig2, phi, V, Y[i,,j], r[i,,j], Lambda[j,], eta[i,,])
+  #   }
+  # }
+  # 
+  # 
+  # # Update alpha weight
+  # for(l in 1:(L-1)){
+  #   v[l] <- rbeta(1 + sum(alpha_g == l), c_prior + sum(alpha_g > l))
+  # }
+  # 
+  # weight[1] <- v[1]
+  # for(i in 2:L){
+  #   weight[l] <- v[l]*prod(1-v[1:(l-1)])
+  # }
+  # if(sum(weight[1:(L-1)]) >= 1) weight[L] <- 0 else weight[L] <- 1-sum(weight[1:(L-1)])
+  # 
+  # # Update alpha_mu
+  # for(l in 1:L){
+  #   alpha_mu_var <- solve(1/alpha_prior_var + sum(alpha_g == l)/alpha_sig2[l])
+  #   alpha_mu_mean <- alpha_mu_var * (alpha_prior_mean/alpha_prior_var + sum(alpha[,1,][alpha_g == l])/alpha_sig2[l])
+  #   alpha_mu[l] <- rnorm(1, mean =alpha_mu_mean , sd = sqrt(alpha_mu_var))
+  # }
+  # 
+  # # Update alpha_sig2
+  # for(l in 1:L){
+  #   alpha_sig2[l] <- 1/rgamma(alpha_a0 + sum(alpha_g == l)/2,
+  #                             alpha_b0 + sum((alpha[,1,][alpha_g == l] - alpha_mu[l])^2)/2)
+  # }
+  # 
+  # # Update phi
+  # alpha_prev <- alpha[,1:(T-1),]
+  # alpha_curr <- alpha[,2:T,]
+  # SS_prev <- alpha_prev^2
+  # SS_pcur <- alpha_prev * alpha_curr
+  # phi_var <- 1 / (1/phi_prior_var + SS_prev/V)
+  # phi_mean <- phi_var * (phi_prior_mean/phi_prior_var + SS_pcur/V)
+  # phi <- rtruncnorm(1, a=-1, b=1, mean = phi_mean, sd = sqrt(phi_var))
+  # 
+  # 
+  # # Update Lambda
+  # for(j in 1:J) {
+  #   k_indices <- 1:min(j, K)
+  #   E_j <- matrix(eta[,,k_indices], nrow = N*T)
+  #   y_j <- c(Y[,,j] - r[,,j] - alpha[,,j])
+  # 
+  #   V_j_inv <- crossprod(E_j)/sigma2 + diag(1, length(k_indices))
+  #   V_j <- solve(V_j_inv)
+  #   m_j <- V_j %*% crossprod(E_j, y_j)/sigma2
+  # 
+  #   for(k_idx in seq_along(k_indices)) {
+  #     k <- k_indices[k_idx]
+  #     if(k < j) {
+  #       Lambda[j,k] <- rnorm(1, m_j[k_idx], sqrt(V_j[k_idx,k_idx]))
+  #     } else if(k == j) {
+  #       Lambda[j,k] <- rtruncnorm(1, a=0, mean=m_j[k_idx], sd=sqrt(V_j[k_idx,k_idx]))
+  #     }
+  #   }
+  # }
+  # 
+  # # Update eta (FFBS)
+  # for(i in 1:N) {
+  #   eta[i,,] <- ffbs(Y[i,,], r[i,,], alpha[i,,], Lambda, rho, Q, sigma2)
+  # }
+  # 
+  # # Update rho
+  # eta_prev <- eta[,1:(T-1),]
+  # eta_curr <- eta[,2:T,]
+  # SS_xx <- sum(eta_prev^2)
+  # SS_xy <- sum(eta_prev * eta_curr)
+  # rho_mean <- (SS_xy/Q + rho_prior_mean/rho_prior_var) / (SS_xx/Q + 1/rho_prior_var)
+  # rho_sd <- sqrt(1 / (SS_xx/Q + 1/rho_prior_var))
+  # rho <- rtruncnorm(1, a=-1, b=1, mean=rho_mean, sd=rho_sd)
+  # 
+  # # Update Q
+  # resid <- eta[,2:T,] - rho * eta[,1:(T-1),]
+  # Q_shape <- Q_prior_shape + N*(T-1)*K/2
+  # Q_rate <- Q_prior_rate + sum(resid^2)/2
+  # Q <- 1/rgamma(1, shape=Q_shape, rate=Q_rate)
+  # 
+  # # Update sigma2
+  # residuals <- Y - r - alpha - aperm(apply(eta, 1:2, function(x) Lambda %*% x), c(2,3,1))
+  # ssr <- sum(residuals^2)
+  # sigma2 <- 1/rgamma(1, a0 + N*T*J/2, b0 + ssr/2)
   
   # Store samples
   if(iter %in% keep) {
     idx <- which(keep == iter)
+    Y_samples[idx,,,] <- Y
+    r_samples[idx,,,] <- r
+    alpha_samples[idx,,,] <- alpha
+    alpha_g_samples[idx,,] <- alpha_g
+    weight_samples[idx,] <- weight
+    alpha_mu_samples[idx,] <- alpha_mu
+    alpha_sig2_samples[idx,] <- alpha_sig2
+    phi_samples[idx] <- phi
+    V_samples[idx] <- V
     Lambda_samples[idx,,] <- Lambda
     sigma2_samples[idx] <- sigma2
     eta_samples[idx,,,] <- eta
@@ -377,6 +404,9 @@ for(iter in 1:n_iter) {
 # Posterior Analysis
 # ----------------------
 # Parameter estimates
+Y_mean <- apply(Y_samples, 2:4, mean)
+r_mean <- apply(r_samples, 2:4, mean)
+
 Lambda_mean <- apply(Lambda_samples, 2:3, mean)
 sigma2_mean <- mean(sigma2_samples)
 rho_mean <- mean(rho_samples)
@@ -400,6 +430,22 @@ plot(Q_samples, type="l", main="Trace plot: Q")
 abline(h = Q_true, col = 'red')
 par(mfrow=c(1,1))
 ts.plot(Lambda_samples[,3,3])
+
+# Latent Y Plot
+par(mfrow = c(1,T))
+for(t in 1:T){
+  plot(Y_mean[,t,], log(Y_count_true[,t,]+0.01),
+       main = paste("time point", t), xlab = "post mean Y", ylab = "log(data+0.01)")
+  abline(0, 1, col = "red")
+}
+
+# normalizing constant r
+par(mfrow = c(1:T))
+for(t in 1:T){
+  plot(r_mean[,t,1], r_true[,t,1],
+      main = paste("time point", t), xlab = "post mean r", ylab = "true r")
+  abline(0, 1, col = "red")
+}
 
 # 3. Heatmap
 # Lambda
