@@ -19,15 +19,15 @@ r_true[,,] <- matrix(runif(N*T, min = 0, max = 2), nrow = N, ncol = T)
 
 
 # alpha simple group case
-weight_true <- c(0.5, 0.3, 0.2)
-alpha_mu_true <- c(-4, 2, 8)
-alpha_sig2_true <- c(0.5, 0.3, 0.2)
-alpha_g_true <- matrix(sample(1:length(weight_true), size = N*J, replace = T, prob = weight_true), nrow = N, ncol = J)
+# weight_true <- c(0.5, 0.3, 0.2)
+# alpha_mu_true <- c(-4, 2, 8)
+# alpha_sig2_true <- c(0.5, 0.3, 0.2)
+# alpha_g_true <- matrix(sample(1:length(weight_true), size = N*J, replace = T, prob = weight_true), nrow = N, ncol = J)
 
-# weight_true <- rdirichlet(1, rep(1/L, L))
-# alpha_mu_true <- seq(from = -4, to = 8, length = L)
-# alpha_sig2_true <- seq(from = 0.1, to = 1.5, length = L)
-# alpha_g_true <- matrix(sample(1:L, size = N*J, replace = T, prob = weight_true), nrow = N, ncol = J)
+weight_true <- rdirichlet(1, rep(1/L, L))
+alpha_mu_true <- seq(from = -4, to = 8, length = L)
+alpha_sig2_true <- seq(from = 0.1, to = 1.5, length = L)
+alpha_g_true <- matrix(sample(1:L, size = N*J, replace = T, prob = weight_true), nrow = N, ncol = J)
 
 alpha_true <- array(0, dim = c(N, T, J))
 
@@ -92,7 +92,7 @@ r_prior_mean <- 0
 r_prior_var <- 1^2
 c_prior <- 1
 alpha_prior_mean <- 0
-alpha_prior_var <- 4^2
+alpha_prior_var <- 5^2
 alpha_a0 <- 2; alpha_b0 <- 1
 V_prior_shape <- 2
 V_prior_rate <- 1
@@ -122,7 +122,7 @@ rho <- 0.5    # AR(1) coefficient
 Q <- 1      # AR(1) innovation variance
 
 # MCMC settings
-n_iter <- 500
+n_iter <- 1000
 # burn_in <- n_iter/2
 # thin <- 2
 # keep <- seq(burn_in + 1, n_iter, by = thin)
@@ -284,11 +284,11 @@ for(iter in 1:n_iter) {
     }
   }
 
-  # Update alpha
+  # # Update alpha
   # Update alpha group
   for(i in 1:N){
     for(j in 1:J){
-      group_prob <- weight * pnorm(alpha[i,1,j], mean = alpha_mu, sd = sqrt(alpha_sig2))
+      group_prob <- weight * dnorm(alpha[i,1,j], mean = alpha_mu, sd = sqrt(alpha_sig2))
       group_prob <- group_prob / sum(group_prob)
 
       if(all(group_prob == rep(0, L))) {group_prob <- rep(1/L, L)}
@@ -437,6 +437,10 @@ sigma2_mean <- mean(sigma2_samples)
 cat("\nParameter Recovery:\n")
 cat("True sigma²:", sigma2_true, 
     "| Estimated sigma²:", round(mean(sigma2_samples), 3), "\n")
+cat("True phi:", phi_true, 
+    "| Estimated phi:", round(mean(phi_samples), 3), "\n")
+cat("True V:", V_true, 
+    "| Estimated V:", round(mean(V_samples), 3), "\n")
 cat("True rho:", rho_true, 
     "| Estimated rho:", round(mean(rho_samples), 3), "\n")
 cat("True Q:", Q_true, 
@@ -444,12 +448,16 @@ cat("True Q:", Q_true,
 
 # 2. Trace plots
 par(mfrow=c(2,1))
+plot(phi_samples, type="l", main="Trace plot: phi")
+abline(h = phi_true, col = 'red')
+plot(V_samples, type="l", main="Trace plot: V")
+abline(h = V_true, col = 'red')
+
+par(mfrow=c(2,1))
 plot(rho_samples, type="l", main="Trace plot: rho")
 abline(h = rho_true, col = 'red')
 plot(Q_samples, type="l", main="Trace plot: Q")
 abline(h = Q_true, col = 'red')
-par(mfrow=c(1,1))
-ts.plot(Lambda_samples[,2,2])
 
 # Latent Y Plot
 par(mfrow = c(1,T))
@@ -505,17 +513,15 @@ draw(ht_list, column_title = paste("alpha at time point",t))
 
 # weight
 weight_true ; weight_final
+round(weight_true, digits = 2) ; round(weight_final, digits = 2)
 
 # alpha_mu
 alpha_mu_true ; alpha_mu_mean # 샘플이 별로 없으면 값이 정확하지 않다
-group_sam <- table(alpha_g_true)
-group_sam_idx <- as.numeric(names(group_sam[group_sam >= 1]))
-
-alpha_mu_true[group_sam_idx] ;  alpha_mu_mean[group_sam_idx]
+alpha_mu_true[weight_true > 0.01] ; sort(alpha_mu_mean[weight_final > 0.01])
 
 # alpha_sig2
 alpha_sig2_true ; alpha_sig2_mean
-alpha_sig2_true[group_sam_idx] ; alpha_sig2_mean[group_sam_idx]
+alpha_sig2_true[weight_true > 0.01] ; sort(alpha_sig2_mean[weight_final > 0.01])
 
 # phi
 phi_true ; phi_mean
@@ -691,3 +697,17 @@ ht2 <- Heatmap(estimated, column_order = colnames(estimated), row_order = rownam
                row_title = "OTU", column_title = "Estimated")
 ht_list <- ht1 + ht2
 draw(ht_list, column_title = "Cov")
+
+rownames(true) <- paste0("row",1:J)
+colnames(true) <- paste0("column",1:J)
+rownames(Cov_mean) <- paste0("row",1:J)
+colnames(Cov_mean) <- paste0("column",1:J)
+
+compare_mat <- true
+compare_mat[upper.tri(compare_mat)] <- Cov_mean[upper.tri(Cov_mean)]
+compare_mat
+rownames(compare_mat) <- paste0("row", 1:J)
+colnames(compare_mat) <- paste0("column", 1:J)
+
+Heatmap(compare_mat, column_order = colnames(compare_mat), row_order = rownames(compare_mat),
+        row_title = "lower : true", column_title = gt_render("Cov(Y_it) <br> upper : estimated"), name = "mat") # diagonal part is true value, lower - true, upper - posterior estimate
