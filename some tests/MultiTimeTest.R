@@ -4,7 +4,7 @@ library(mvtnorm)
 library(truncnorm) 
 library(circlize)
 library(ComplexHeatmap)
-set.seed(124) # seed = 124, 125 : there is a similar problem(sign-changing problem)
+set.seed(123)
 N <- 20    # Number of subjects
 T <- 3      # Time points
 J <- 30     # Observed variables
@@ -62,7 +62,7 @@ rho <- 0.5    # AR(1) coefficient
 Q <- 1      # AR(1) innovation variance
 
 # MCMC settings
-n_iter <- 20000
+n_iter <- 10000
 burn_in <- n_iter/2
 thin <- 2
 keep <- seq(burn_in + 1, n_iter, by = thin)
@@ -187,7 +187,7 @@ for(iter in 1:n_iter) {
   if(iter %% 100 == 0) cat("Iteration:", iter, "\n")
 }
 
-# save.image("C:/Users/SEC/Desktop/research/25summer/may5th/MultiTimeTest.RData")
+save.image("C:/Users/SEC/Documents/LODI/some tests/MultiTimeTest_250609.RData")
 
 # ----------------------
 # Posterior Analysis
@@ -286,8 +286,6 @@ ht2 <- Heatmap(estimated, column_order = colnames(estimated), row_order = rownam
                row_title = "OTU", column_title = "Estimated")
 ht_list <- ht1 + ht2
 draw(ht_list, column_title = "Cov")
-
-
 
 rownames(true) <- paste0("row",1:J)
 colnames(true) <- paste0("column",1:J)

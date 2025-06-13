@@ -50,7 +50,7 @@ for(t in 1:T){
 }
 
 # MCMC setting 
-n_sim <- 20000 # 적은 iteration 해보고 50000으로
+n_sim <- 1000 # 적은 iteration 해보고 50000으로
 burn_in <- n_sim/2
 thin <- 2
 keep <- seq(burn_in + 1, n_sim, by = thin)
@@ -196,10 +196,10 @@ for(s in 2:n_sim){
   rho_sam[s] <- rtruncnorm(1, a = 0, b = Inf, mean = mean_rho, sd = sqrt(var_rho))
 
 
-  # # 4. sampling Q
-  # resid <- eta_sam[,,2:T,s] - rho_sam[s]*eta_sam[,,1:(T-1),s]
-  # 
-  # Q_sam[s] <- 1/rgamma(1, sig_a_Q + (n*(T-1)*K/2), sig_b_Q + (sum(resid^2)/2))
+  # 4. sampling Q
+  resid <- eta_sam[,,2:T,s] - rho_sam[s]*eta_sam[,,1:(T-1),s]
+
+  Q_sam[s] <- 1/rgamma(1, sig_a_Q + (n*(T-1)*K/2), sig_b_Q + (sum(resid^2)/2))
 
   # 5. sampling sigma2
   # method 3

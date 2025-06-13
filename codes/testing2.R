@@ -180,7 +180,7 @@ data <- y_count
 ################################################################################
 # Gibbs sampling ###############################################################
 # parameter setting
-n_sim <- 10000
+n_sim <- 500
 mu_updated <- array(0, dim=c(n, J, T))
 post_latent <- array(0, dim=c(n, J, T, n_sim))
 r_it <- array(0, dim=c(n, T, n_sim))
@@ -604,6 +604,8 @@ for(s in 2:n_sim){
   
   sigma_t[s] <- 1/rgamma(1, sig_a + (n*J*T/2), sig_b + (lik_term/2))
   
+  if(s %% 100 == 0) cat("Iteration:", s, "\n")
+  
 }
 endTm <- Sys.time()
 
@@ -629,8 +631,11 @@ graphics.off()
 par("mar")
 # posterior of latent variable check ###########################################
 plot(post_latent[,,1,n_sim], log(data[,,1]+0.01))
+abline(0, 1, col= "red")
 plot(post_latent[,,2,n_sim], log(data[,,2]+0.01))
+abline(0, 1, col= "red")
 plot(post_latent[,,3,n_sim], log(data[,,3]+0.01))
+abline(0, 1, col= "red")
 # post latent variable로 만든 data의 log값, data의 log값 비교
 # latent variable의 log값이 0보다 클 때, 일직선을 따름
 # latent variable의 log값이 -5에 가까울 때(아마 데이터값이 0인듯), 실제 데이터의 로그값은 -5에서 10까지 따름..
@@ -652,17 +657,41 @@ abline(0, 1, col = "red")
 
 
 # alpha check ##################################################################
-alpha_mean <- numeric()
+alpha_mean <- apply(alpha_ijt, 1:3, mean)
 
 # calculating posterior mean
+alpha_mean[,,t] ; alpha[,,t]
+
 for(t in 1:T){
-  alpha_mean[t] <- mean(alpha_ijt[1,1,t,])  
+  alp_min <- min(alpha[,,t], alpha_mean[,,t])
+  alp_max <- max(alpha[,,t], alpha_mean[,,t])
+  
+  col_fun <- colorRamp2(c(alp_min, 0, alp_max), c("blue", "white", "red"))
+  true <- alpha[,,t]
+  estimated <- alpha_mean[,,t]
+  
+  rownames(true) <- paste("row", 1:n)
+  colnames(true) <- paste("col", 1:J)
+  rownames(estimated) <- paste("row", 1:n)
+  colnames(estimated) <- paste("col", 1:J)
+  
+  ht1 <- Heatmap(true, 
+                 column_order = colnames(true), 
+                 row_order = rownames(true),
+                 row_title = "Subject", 
+                 column_title = "True", 
+                 col = col_fun,
+                 name = "True")
+  ht2 <- Heatmap(estimated, 
+                 column_order = colnames(estimated), 
+                 row_order = rownames(estimated),
+                 row_title = "Subject", 
+                 column_title = "Estimated", 
+                 col = col_fun,
+                 name = "Estimated")
+  ht_list <- ht1 + ht2
+  draw(ht_list, column_title = paste("alpha at time point",t))
 }
-alpha_mean
-cbind("post mean"=alpha_mean, "last value" = alpha_ijt[1,1,,n_sim], "true" = alpha[1,1,])
-
-
-alpha_ijt[,,,n_sim] ; alpha
 
 
 
@@ -685,6 +714,7 @@ draw(ht_list, column_title = "comparing true and estimated alpha0")
 
 # latent variable (group member)
 alpha0_grp ; alpha0_grp_update[,,n_sim]
+table(alpha0_grp) ; table(alpha0_grp_update[,,n_sim])
 
 rownames(alpha0_grp) <- paste0("row",1:20)
 colnames(alpha0_grp) <- paste0("column",1:30)

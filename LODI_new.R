@@ -19,15 +19,16 @@ r_true[,,] <- matrix(runif(N*T, min = 0, max = 2), nrow = N, ncol = T)
 
 
 # alpha simple group case
-# alpha_g_true[,] <- sample(1:3, size = N*J, replace = T, prob = c(0.5, 0.3, 0.2))
-# alpha_mean <- c(-4, 2, 8)
-# alpha_var <- c(0.5, 1, 2)
+weight_true <- c(0.5, 0.3, 0.2)
+alpha_mu_true <- c(-4, 2, 8)
+alpha_sig2_true <- c(0.5, 0.3, 0.2)
+alpha_g_true <- matrix(sample(1:length(weight_true), size = N*J, replace = T, prob = weight_true), nrow = N, ncol = J)
 
-weight_true <- rdirichlet(1, rep(1/L, L))
-alpha_mu_true <- seq(from = -4, to = 8, length = L)
-alpha_sig2_true <- seq(from = 0.1, to = 1.5, length = L)
+# weight_true <- rdirichlet(1, rep(1/L, L))
+# alpha_mu_true <- seq(from = -4, to = 8, length = L)
+# alpha_sig2_true <- seq(from = 0.1, to = 1.5, length = L)
+# alpha_g_true <- matrix(sample(1:L, size = N*J, replace = T, prob = weight_true), nrow = N, ncol = J)
 
-alpha_g_true <- matrix(sample(1:L, size = N*J, replace = T, prob = weight_true), nrow = N, ncol = J)
 alpha_true <- array(0, dim = c(N, T, J))
 
 phi_true <- 0.8
@@ -87,10 +88,14 @@ Y_count_true[,3,]
 # MCMC Setup
 # ----------------------
 # Priors
+r_prior_mean <- 0
+r_prior_var <- 1^2
 c_prior <- 1
 alpha_prior_mean <- 0
 alpha_prior_var <- 4^2
 alpha_a0 <- 2; alpha_b0 <- 1
+V_prior_shape <- 2
+V_prior_rate <- 1
 phi_prior_mean <- 0
 phi_prior_var <- 1
 a0 <- 2; b0 <- 1 # Inverse-Gamma for sigma2
@@ -102,7 +107,7 @@ Q_prior_rate <- 1      # Inverse-Gamma rate for Q
 # Initialize parameters
 Y <- array(0, c(N, T, J))
 r <- array(0, c(N, T, J))
-alpha <- matrix(0, c(N, T, J))
+alpha <- array(0, c(N, T, J))
 alpha_g <- matrix(sample(1:3, N*J, replace = T), N, J)
 weight <- rdirichlet(1, rep(1, L))
 v <- rep(0.5, (L-1))
@@ -118,9 +123,11 @@ Q <- 1      # AR(1) innovation variance
 
 # MCMC settings
 n_iter <- 500
-burn_in <- n_iter/2
-thin <- 2
-keep <- seq(burn_in + 1, n_iter, by = thin)
+# burn_in <- n_iter/2
+# thin <- 2
+# keep <- seq(burn_in + 1, n_iter, by = thin)
+keep <- 1:n_iter
+
 
 # Storage
 Y_samples <- array(NA, dim = c(length(keep), N, T, J))
@@ -142,13 +149,13 @@ Q_samples <- numeric(length(keep))
 # FFBS Implementation
 # ----------------------
 ffbs_alpha <- function(alpha_g, alpha_mu, alpha_sig2, phi, V, Y, r, Lambda, eta){
-  Time <- dim(Y)[1]
+  Time <- length(Y)
   
   # Kalman filter
-  m <- matrix(0, Time)
-  C <- matrix(0, Time)
-  a <- matrix(0, Time)
-  R <- matrix(0, Time)
+  m <- rep(0, Time)
+  C <- rep(0, Time)
+  a <- rep(0, Time)
+  R <- rep(0, Time)
   
   # Initialize
   m[1] <- alpha_mu[alpha_g]
@@ -235,146 +242,153 @@ ffbs <- function(y, r, alpha, Lambda, rho, Q, sigma2) {
 # ----------------------
 for(iter in 1:n_iter) {
   
-  Y <- Y_true
+  # Y <- Y_true
   # r <- r_true
-  alpha <- alpha_true
-  alpha_g <- alpha_g_true
-  weight <- weight_true
-  alpha_mu <- alpha_mu_true
-  alpha_sig2 <- alpha_sig2_true
-  phi <- phi_true
-  V <- V_true
-  Lambda <- Lambda_true
-  sigma2 <- sigma2_true
-  eta <- eta_true
-  rho <- rho_true
-  Q <- Q_true
+  # alpha <- alpha_true
+  # alpha_g <- alpha_g_true
+  # weight <- weight_true
+  # alpha_mu <- alpha_mu_true
+  # alpha_sig2 <- alpha_sig2_true
+  # phi <- phi_true
+  # V <- V_true
+  # Lambda <- Lambda_true
+  # eta <- eta_true
+  # rho <- rho_true
+  # Q <- Q_true
+  # sigma2 <- sigma2_true
   
-  # # Sampling latent variable Y
-  # for(i in 1:N){
-  #   for(j in 1:J){
-  #     for(t in 1:T){
-  #       if(Y_count_true[i,t,j]==0){
-  #         Y[i,t,j] <- rtruncnorm(1, a = -Inf, b = 0,
-  #                                        mean = r[i,t,j] + alpha[i,t,j] + Lambda[j,] %*% eta[i,t,], sd = sqrt(sigma2))
-  #       } else {
-  #         Y[i,t,j] <- rtruncnorm(1, a=log(Y_count_true[i,t,j]), b=log(Y_count_true[i,t,j]+1),
-  #                                        mean = r[i,t,j] + alpha[i,t,j] + Lambda[j,] %*% eta[i,t,], sd = sqrt(sigma2)) 
-  #       }
-  #     }
-  #   }
-  # }
   
+  # Sampling latent variable Y
+  for(i in 1:N){
+    for(j in 1:J){
+      for(t in 1:T){
+        if(Y_count_true[i,t,j]==0){
+          Y[i,t,j] <- rtruncnorm(1, a = -Inf, b = 0,
+                                         mean = r[i,t,j] + alpha[i,t,j] + Lambda[j,] %*% eta[i,t,], sd = sqrt(sigma2))
+        } else {
+          Y[i,t,j] <- rtruncnorm(1, a=log(Y_count_true[i,t,j]), b=log(Y_count_true[i,t,j]+1),
+                                         mean = r[i,t,j] + alpha[i,t,j] + Lambda[j,] %*% eta[i,t,], sd = sqrt(sigma2))
+        }
+      }
+    }
+  }
+
   # Update r
   for(i in 1:N){
     for(t in 1:T){
       r_res <- Y[i,t,] - alpha[i,t,] - Lambda %*% eta[i,t,]
-      r_ssr <- sum(r_res^2)
-      r_mean <- solve(J/sigma2)*(r_ssr/sigma2)
-      r_var <- solve(J/sigma2)
-      r[i,t,] <- rtruncnorm(1, a=0, b=3, mean = r_mean, sd = sqrt(r_var))
+      r_res_sum <- sum(r_res)
+      r_mean <- solve(1/r_prior_var + J/sigma2)*(r_prior_mean/r_prior_var + r_res_sum/sigma2)
+      r_var <- solve(1/r_prior_var + J/sigma2)
+      r[i,t,] <- rtruncnorm(1, a=0, b = Inf, mean = r_mean, sd = sqrt(r_var))
     }
   }
 
-  # # Update alpha
-  # # Update alpha group
-  # for(i in 1:N){
-  #   for(j in 1:J){
-  #     group_prob <- weight * pnorm(alpha[i,1,j], mean = alpha_mu, sd = sqrt(alpha_sig2))
-  #     group_prob <- group_prob / sum(group_prob)
-  #     
-  #     if(all(group_prob == rep(0, L))) {group_prob <- rep(1/L, L)}
-  #     
-  #     alpha_g[i,j] <- sample(1:L, 1, prob = group_prob)
-  #   }
-  # }
-  # 
-  # # Update alpha - FFBS
-  # for(i in 1:N){
-  #   for(j in 1:J){
-  #     alpha[i,,j] <- ffbs_alpha(alpha[i,,j], alpha_g[i,j], alpha_mu, alpha_sig2, phi, V, Y[i,,j], r[i,,j], Lambda[j,], eta[i,,])
-  #   }
-  # }
-  # 
-  # 
-  # # Update alpha weight
-  # for(l in 1:(L-1)){
-  #   v[l] <- rbeta(1 + sum(alpha_g == l), c_prior + sum(alpha_g > l))
-  # }
-  # 
-  # weight[1] <- v[1]
-  # for(i in 2:L){
-  #   weight[l] <- v[l]*prod(1-v[1:(l-1)])
-  # }
-  # if(sum(weight[1:(L-1)]) >= 1) weight[L] <- 0 else weight[L] <- 1-sum(weight[1:(L-1)])
-  # 
-  # # Update alpha_mu
-  # for(l in 1:L){
-  #   alpha_mu_var <- solve(1/alpha_prior_var + sum(alpha_g == l)/alpha_sig2[l])
-  #   alpha_mu_mean <- alpha_mu_var * (alpha_prior_mean/alpha_prior_var + sum(alpha[,1,][alpha_g == l])/alpha_sig2[l])
-  #   alpha_mu[l] <- rnorm(1, mean =alpha_mu_mean , sd = sqrt(alpha_mu_var))
-  # }
-  # 
-  # # Update alpha_sig2
-  # for(l in 1:L){
-  #   alpha_sig2[l] <- 1/rgamma(alpha_a0 + sum(alpha_g == l)/2,
-  #                             alpha_b0 + sum((alpha[,1,][alpha_g == l] - alpha_mu[l])^2)/2)
-  # }
-  # 
-  # # Update phi
-  # alpha_prev <- alpha[,1:(T-1),]
-  # alpha_curr <- alpha[,2:T,]
-  # SS_prev <- alpha_prev^2
-  # SS_pcur <- alpha_prev * alpha_curr
-  # phi_var <- 1 / (1/phi_prior_var + SS_prev/V)
-  # phi_mean <- phi_var * (phi_prior_mean/phi_prior_var + SS_pcur/V)
-  # phi <- rtruncnorm(1, a=-1, b=1, mean = phi_mean, sd = sqrt(phi_var))
-  # 
-  # 
-  # # Update Lambda
-  # for(j in 1:J) {
-  #   k_indices <- 1:min(j, K)
-  #   E_j <- matrix(eta[,,k_indices], nrow = N*T)
-  #   y_j <- c(Y[,,j] - r[,,j] - alpha[,,j])
-  # 
-  #   V_j_inv <- crossprod(E_j)/sigma2 + diag(1, length(k_indices))
-  #   V_j <- solve(V_j_inv)
-  #   m_j <- V_j %*% crossprod(E_j, y_j)/sigma2
-  # 
-  #   for(k_idx in seq_along(k_indices)) {
-  #     k <- k_indices[k_idx]
-  #     if(k < j) {
-  #       Lambda[j,k] <- rnorm(1, m_j[k_idx], sqrt(V_j[k_idx,k_idx]))
-  #     } else if(k == j) {
-  #       Lambda[j,k] <- rtruncnorm(1, a=0, mean=m_j[k_idx], sd=sqrt(V_j[k_idx,k_idx]))
-  #     }
-  #   }
-  # }
-  # 
-  # # Update eta (FFBS)
-  # for(i in 1:N) {
-  #   eta[i,,] <- ffbs(Y[i,,], r[i,,], alpha[i,,], Lambda, rho, Q, sigma2)
-  # }
-  # 
-  # # Update rho
-  # eta_prev <- eta[,1:(T-1),]
-  # eta_curr <- eta[,2:T,]
-  # SS_xx <- sum(eta_prev^2)
-  # SS_xy <- sum(eta_prev * eta_curr)
-  # rho_mean <- (SS_xy/Q + rho_prior_mean/rho_prior_var) / (SS_xx/Q + 1/rho_prior_var)
-  # rho_sd <- sqrt(1 / (SS_xx/Q + 1/rho_prior_var))
-  # rho <- rtruncnorm(1, a=-1, b=1, mean=rho_mean, sd=rho_sd)
-  # 
-  # # Update Q
-  # resid <- eta[,2:T,] - rho * eta[,1:(T-1),]
-  # Q_shape <- Q_prior_shape + N*(T-1)*K/2
-  # Q_rate <- Q_prior_rate + sum(resid^2)/2
-  # Q <- 1/rgamma(1, shape=Q_shape, rate=Q_rate)
-  # 
-  # # Update sigma2
-  # residuals <- Y - r - alpha - aperm(apply(eta, 1:2, function(x) Lambda %*% x), c(2,3,1))
-  # ssr <- sum(residuals^2)
-  # sigma2 <- 1/rgamma(1, a0 + N*T*J/2, b0 + ssr/2)
+  # Update alpha
+  # Update alpha group
+  for(i in 1:N){
+    for(j in 1:J){
+      group_prob <- weight * pnorm(alpha[i,1,j], mean = alpha_mu, sd = sqrt(alpha_sig2))
+      group_prob <- group_prob / sum(group_prob)
+
+      if(all(group_prob == rep(0, L))) {group_prob <- rep(1/L, L)}
+
+      alpha_g[i,j] <- sample(1:L, 1, prob = group_prob)
+    }
+  }
+
+  # Update alpha - FFBS
+  for(i in 1:N){
+    for(j in 1:J){
+      alpha[i,,j] <- ffbs_alpha(alpha_g[i,j], alpha_mu, alpha_sig2, phi, V, Y[i,,j], r[i,,j], Lambda[j,], eta[i,,])
+    }
+  }
+
+
+  # Update alpha weight
+  for(l in 1:(L-1)){
+    v[l] <- rbeta(1, shape1 = 1 + sum(alpha_g == l), shape2 = c_prior + sum(alpha_g > l))
+  }
+
+  weight[1] <- v[1]
+  for(i in 2:L){
+    weight[l] <- v[l]*prod(1-v[1:(l-1)])
+  }
+  if(sum(weight[1:(L-1)]) >= 1) weight[L] <- 0 else weight[L] <- 1-sum(weight[1:(L-1)])
+
+  # Update alpha_mu
+  for(l in 1:L){
+    alpha_mu_var <- solve(1/alpha_prior_var + sum(alpha_g == l)/alpha_sig2[l])
+    alpha_mu_mean <- alpha_mu_var * (alpha_prior_mean/alpha_prior_var + sum(alpha[,1,][alpha_g == l])/alpha_sig2[l])
+    alpha_mu[l] <- rnorm(1, mean =alpha_mu_mean , sd = sqrt(alpha_mu_var))
+  }
+
+  # Update alpha_sig2
+  for(l in 1:L){
+    alpha_sig2[l] <- 1/rgamma(1, alpha_a0 + sum(alpha_g == l)/2,
+                              alpha_b0 + sum((alpha[,1,][alpha_g == l] - alpha_mu[l])^2)/2)
+  }
+
+  # Update phi
+  alpha_prev <- alpha[,1:(T-1),]
+  alpha_curr <- alpha[,2:T,]
+  SS_prev <- sum(alpha_prev^2)
+  SS_pcur <- sum(alpha_prev * alpha_curr)
+  phi_var <- 1 / (1/phi_prior_var + SS_prev/V)
+  phi_mean <- phi_var * (phi_prior_mean/phi_prior_var + SS_pcur/V)
+  phi <- rtruncnorm(1, a=-1, b=1, mean = phi_mean, sd = sqrt(phi_var))
+
+  # Update V
+  V_res <- alpha[,2:T,] - phi * alpha[,1:(T-1),]
+  V_shape <- V_prior_shape + N*(T-1)*J/2
+  V_rate <- V_prior_rate + sum(V_res^2)/2
+  V <- 1/rgamma(1, shape=V_shape, rate=V_rate)
+
+
+  # Update Lambda
+  for(j in 1:J) {
+    k_indices <- 1:min(j, K)
+    E_j <- matrix(eta[,,k_indices], nrow = N*T)
+    y_j <- c(Y[,,j] - r[,,j] - alpha[,,j])
+
+    V_j_inv <- crossprod(E_j)/sigma2 + diag(1, length(k_indices))
+    V_j <- solve(V_j_inv)
+    m_j <- V_j %*% crossprod(E_j, y_j)/sigma2
+
+    for(k_idx in seq_along(k_indices)) {
+      k <- k_indices[k_idx]
+      if(k < j) {
+        Lambda[j,k] <- rnorm(1, m_j[k_idx], sqrt(V_j[k_idx,k_idx]))
+      } else if(k == j) {
+        Lambda[j,k] <- rtruncnorm(1, a=0, mean=m_j[k_idx], sd=sqrt(V_j[k_idx,k_idx]))
+      }
+    }
+  }
+
+  # Update eta (FFBS)
+  for(i in 1:N) {
+    eta[i,,] <- ffbs(Y[i,,], r[i,,], alpha[i,,], Lambda, rho, Q, sigma2)
+  }
+
+  # Update rho
+  eta_prev <- eta[,1:(T-1),]
+  eta_curr <- eta[,2:T,]
+  SS_xx <- sum(eta_prev^2)
+  SS_xy <- sum(eta_prev * eta_curr)
+  rho_mean <- (SS_xy/Q + rho_prior_mean/rho_prior_var) / (SS_xx/Q + 1/rho_prior_var)
+  rho_sd <- sqrt(1 / (SS_xx/Q + 1/rho_prior_var))
+  rho <- rtruncnorm(1, a=-1, b=1, mean=rho_mean, sd=rho_sd)
+
+  # Update Q
+  resid <- eta[,2:T,] - rho * eta[,1:(T-1),]
+  Q_shape <- Q_prior_shape + N*(T-1)*K/2
+  Q_rate <- Q_prior_rate + sum(resid^2)/2
+  Q <- 1/rgamma(1, shape=Q_shape, rate=Q_rate)
+
+  # Update sigma2
+  residuals <- Y - r - alpha - aperm(apply(eta, 1:2, function(x) Lambda %*% x), c(2,3,1))
+  ssr <- sum(residuals^2)
+  sigma2 <- 1/rgamma(1, a0 + N*T*J/2, b0 + ssr/2)
   
   # Store samples
   if(iter %in% keep) {
@@ -406,12 +420,18 @@ for(iter in 1:n_iter) {
 # Parameter estimates
 Y_mean <- apply(Y_samples, 2:4, mean)
 r_mean <- apply(r_samples, 2:4, mean)
-
+alpha_g_final <- alpha_g_samples[length(alpha_g_samples[,1,1]),,]
+alpha_mean <- apply(alpha_samples, 2:4, mean)
+weight_final <- weight_samples[length(weight_samples[,1]),]
+alpha_mu_mean <- apply(alpha_mu_samples, 2, mean)
+alpha_sig2_mean <- apply(alpha_sig2_samples, 2, mean)
+phi_mean <- mean(phi_samples)
+V_mean <- mean(V_samples)
 Lambda_mean <- apply(Lambda_samples, 2:3, mean)
-sigma2_mean <- mean(sigma2_samples)
+eta_mean <- apply(eta_samples, 2:4, mean)
 rho_mean <- mean(rho_samples)
 Q_mean <- mean(Q_samples)
-eta_mean <- apply(eta_samples, 2:4, mean)
+sigma2_mean <- mean(sigma2_samples)
 
 # 1. Parameter comparison
 cat("\nParameter Recovery:\n")
@@ -429,7 +449,7 @@ abline(h = rho_true, col = 'red')
 plot(Q_samples, type="l", main="Trace plot: Q")
 abline(h = Q_true, col = 'red')
 par(mfrow=c(1,1))
-ts.plot(Lambda_samples[,3,3])
+ts.plot(Lambda_samples[,2,2])
 
 # Latent Y Plot
 par(mfrow = c(1,T))
@@ -440,12 +460,68 @@ for(t in 1:T){
 }
 
 # normalizing constant r
-par(mfrow = c(1:T))
+par(mfrow = c(1,T))
 for(t in 1:T){
   plot(r_mean[,t,1], r_true[,t,1],
       main = paste("time point", t), xlab = "post mean r", ylab = "true r")
   abline(0, 1, col = "red")
 }
+
+# normalized abundance alpha
+# alpha group
+table(alpha_g_true) ; table(alpha_g_final)
+
+# alpha
+for(t in 1:T){
+alp_min <- min(alpha_true[,t,], alpha_mean[,t,])
+alp_max <- max(alpha_true[,t,], alpha_mean[,t,])
+
+col_fun <- colorRamp2(c(alp_min, 0, alp_max), c("blue", "white", "red"))
+true <- alpha_true[,t,]
+estimated <- alpha_mean[,t,]
+
+rownames(true) <- paste("row", 1:N)
+colnames(true) <- paste("col", 1:J)
+rownames(estimated) <- paste("row", 1:N)
+colnames(estimated) <- paste("col", 1:J)
+
+ht1 <- Heatmap(true, 
+               column_order = colnames(true), 
+               row_order = rownames(true),
+               row_title = "Subject", 
+               column_title = "True", 
+               col = col_fun,
+               name = "True")
+ht2 <- Heatmap(estimated, 
+               column_order = colnames(estimated), 
+               row_order = rownames(estimated),
+               row_title = "Subject", 
+               column_title = "Estimated", 
+               col = col_fun,
+               name = "Estimated")
+ht_list <- ht1 + ht2
+draw(ht_list, column_title = paste("alpha at time point",t))
+}
+
+# weight
+weight_true ; weight_final
+
+# alpha_mu
+alpha_mu_true ; alpha_mu_mean # 샘플이 별로 없으면 값이 정확하지 않다
+group_sam <- table(alpha_g_true)
+group_sam_idx <- as.numeric(names(group_sam[group_sam >= 1]))
+
+alpha_mu_true[group_sam_idx] ;  alpha_mu_mean[group_sam_idx]
+
+# alpha_sig2
+alpha_sig2_true ; alpha_sig2_mean
+alpha_sig2_true[group_sam_idx] ; alpha_sig2_mean[group_sam_idx]
+
+# phi
+phi_true ; phi_mean
+
+# V
+V_true ; V_mean
 
 # 3. Heatmap
 # Lambda
@@ -455,26 +531,58 @@ estimated <- Lambda_mean
 compare_mat <- true
 rownames(compare_mat) <- paste0("row", 1:J)
 colnames(compare_mat) <- paste0("column", 1:K)
-ht1 <- Heatmap(true, column_order = colnames(true), row_order = rownames(true),
-               row_title = "OTU", column_title = "True", col = col_fun)
-ht2 <- Heatmap(estimated, column_order = colnames(estimated), row_order = rownames(estimated),
-               row_title = "OTU", column_title = "Estimated", col = col_fun)
+ht1 <- Heatmap(true, 
+               column_order = colnames(true), 
+               row_order = rownames(true),
+               row_title = "OTU", 
+               column_title = "True", 
+               col = col_fun,
+               name = "True")
+ht2 <- Heatmap(estimated, 
+               column_order = colnames(estimated), 
+               row_order = rownames(estimated),
+               row_title = "OTU", 
+               column_title = "Estimated", 
+               col = col_fun,
+               name = "Estimated")
 ht_list <- ht1 + ht2
 draw(ht_list, column_title = "Lambda")
 
 # Eta
-col_fun <- colorRamp2(c(-2, 0, 2), c("blue", "white", "red"))
-true <- eta_true[,,2]
-estimated <- eta_mean[,,2]
-compare_mat <- true
-rownames(compare_mat) <- paste0("row", 1:N)
-colnames(compare_mat) <- paste0("column", 1:K)
-ht1 <- Heatmap(true, column_order = colnames(true), row_order = rownames(true),
-               row_title = "OTU", column_title = "True", col = col_fun)
-ht2 <- Heatmap(estimated, column_order = colnames(estimated), row_order = rownames(estimated),
-               row_title = "OTU", column_title = "Estimated", col = col_fun)
-ht_list <- ht1 + ht2
-draw(ht_list, column_title = "Eta")
+for(t in 1:T){
+  col_fun <- colorRamp2(c(-2, 0, 2), c("blue", "white", "red"))
+  true <- eta_true[,,t]
+  estimated <- eta_mean[,,t]
+  compare_mat <- true
+  rownames(compare_mat) <- paste0("row", 1:N)
+  colnames(compare_mat) <- paste0("column", 1:K)
+  ht1 <- Heatmap(true, 
+                 column_order = colnames(true), 
+                 row_order = rownames(true),
+                 row_title = "OTU", 
+                 column_title = "True",
+                 col = col_fun,
+                 name = "True")
+  ht2 <- Heatmap(estimated, 
+                 column_order = colnames(estimated), 
+                 row_order = rownames(estimated),
+                 row_title = "OTU", 
+                 column_title = "Estimated", 
+                 col = col_fun,
+                 name = "Estimated")
+  ht_list <- ht1 + ht2
+  draw(ht_list, column_title = paste("Eta at time point",t))
+}
+
+# rho
+rho_true ; rho_mean
+
+# Q
+Q_true ; Q_mean
+
+# Sigma2
+sigma2_true ; sigma2_mean
+
 
 # LL^T - median
 tcross_array <- array(NA, dim = c(J, J, dim(Lambda_samples)[1]))
@@ -510,10 +618,18 @@ compare_mat <- true
 rownames(compare_mat) <- paste0("row", 1:J)
 colnames(compare_mat) <- paste0("column", 1:J)
 col_fun = colorRamp2(c(-2, 0, 2), c("blue", "white", "red"))
-ht1 <- Heatmap(true, column_order = colnames(true), row_order = rownames(true),
-               row_title = "OTU", column_title = "True")
-ht2 <- Heatmap(estimated, column_order = colnames(estimated), row_order = rownames(estimated),
-               row_title = "OTU", column_title = "Estimated")
+ht1 <- Heatmap(true, 
+               column_order = colnames(true), 
+               row_order = rownames(true),
+               row_title = "OTU", 
+               column_title = "True",
+               name = "True")
+ht2 <- Heatmap(estimated, 
+               column_order = colnames(estimated), 
+               row_order = rownames(estimated),
+               row_title = "OTU", 
+               column_title = "Estimated",
+               name = "Estimated")
 ht_list <- ht1 + ht2
 draw(ht_list, column_title = "Cov")
 
@@ -521,7 +637,6 @@ draw(ht_list, column_title = "Cov")
 
 rownames(true) <- paste0("row",1:J)
 colnames(true) <- paste0("column",1:J)
-
 rownames(Cov_median) <- paste0("row",1:J)
 colnames(Cov_median) <- paste0("column",1:J)
 
@@ -533,9 +648,6 @@ colnames(compare_mat) <- paste0("column", 1:J)
 
 Heatmap(compare_mat, column_order = colnames(compare_mat), row_order = rownames(compare_mat),
         row_title = "lower : true", column_title = gt_render("Cov(Y_it) <br> upper : estimated"), name = "mat") # diagonal part is true value, lower - true, upper - posterior estimate
-
-
-
 
 
 
