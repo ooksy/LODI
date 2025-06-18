@@ -82,16 +82,16 @@ for(i in 1:length(uniq_grp3)){
   for(j in 1:length(uniq_timept)){
     idx <- (mouse$Grouped.genotype == levels(uniq_grp3)[i]) & (mouse$Timepoint == uniq_timept[j])
     otus_grp <- unname(unlist(mouse[idx, 6:59]))
-
-      png(file = paste("C:/Users/SEC/Desktop/research/eda/density/density",ACKG,uniq_timept[j],".png", sep=""),
-          width = 11,
-          height = 9,
-          units = "in",
-          res = 1200)
-      
-      plot(density(otus_grp), main = paste("group :", levels(uniq_grp3)[i], ", timepoint :", levels(uniq_timept)[j]))
-      
-      dev.off()
+    
+    png(file = paste("C:/Users/SEC/Desktop/research/eda/density/density",ACKG,uniq_timept[j],".png", sep=""),
+        width = 11,
+        height = 9,
+        units = "in",
+        res = 1200)
+    
+    plot(density(otus_grp), main = paste("group :", levels(uniq_grp3)[i], ", timepoint :", levels(uniq_timept)[j]))
+    
+    dev.off()
   }
 }
 
@@ -150,8 +150,8 @@ for(t in 1:length(uniq_timept)){
 }
 
 for(i in 1:length(uniq_grp3)){
-for(t in 1:length(uniq_timept)){
-  idx <-  (mouse$Grouped.genotype == uniq_grp3[i]) & (mouse$Timepoint == uniq_timept[t])
-  corrplot(cor(mouse[idx, 6:59]))
+  for(t in 1:length(uniq_timept)){
+    idx <-  (mouse$Grouped.genotype == uniq_grp3[i]) & (mouse$Timepoint == uniq_timept[t])
+    corrplot(cor(mouse[idx, 6:59]))
   }
 }
