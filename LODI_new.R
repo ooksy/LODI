@@ -19,15 +19,15 @@ r_true[,,] <- matrix(runif(N*T, min = 0, max = 2), nrow = N, ncol = T)
 
 
 # alpha simple group case
-# weight_true <- c(0.5, 0.3, 0.2)
-# alpha_mu_true <- c(-4, 2, 8)
-# alpha_sig2_true <- c(0.5, 0.3, 0.2)
-# alpha_g_true <- matrix(sample(1:length(weight_true), size = N*J, replace = T, prob = weight_true), nrow = N, ncol = J)
+weight_true <- c(0.5, 0.3, 0.2)
+alpha_mu_true <- c(-4, 2, 8)
+alpha_sig2_true <- c(0.5, 0.3, 0.2)
+alpha_g_true <- matrix(sample(1:length(weight_true), size = N*J, replace = T, prob = weight_true), nrow = N, ncol = J)
 
-weight_true <- rdirichlet(1, rep(1/L, L))
-alpha_mu_true <- seq(from = -4, to = 8, length = L)
-alpha_sig2_true <- seq(from = 0.1, to = 1.5, length = L)
-alpha_g_true <- matrix(sample(1:L, size = N*J, replace = T, prob = weight_true), nrow = N, ncol = J)
+# weight_true <- rdirichlet(1, rep(1/L, L))
+# alpha_mu_true <- seq(from = -4, to = 8, length = L)
+# alpha_sig2_true <- seq(from = 0.1, to = 1.5, length = L)
+# alpha_g_true <- matrix(sample(1:L, size = N*J, replace = T, prob = weight_true), nrow = N, ncol = J)
 
 alpha_true <- array(0, dim = c(N, T, J))
 
@@ -123,10 +123,9 @@ Q <- 1      # AR(1) innovation variance
 
 # MCMC settings
 n_iter <- 50000
-# burn_in <- n_iter/2
-# thin <- 2
-# keep <- seq(burn_in + 1, n_iter, by = thin)
-keep <- 1:n_iter
+burn_in <- n_iter/2
+thin <- 2
+keep <- seq(burn_in + 1, n_iter, by = thin)
 
 
 # Storage
@@ -148,7 +147,7 @@ Q_samples <- numeric(length(keep))
 # ----------------------
 # FFBS Implementation
 # ----------------------
-ffbs_alpha <- function(alpha_g, alpha_mu, alpha_sig2, phi, V, Y, r, Lambda, eta){
+ffbs_alpha <- function(alpha_g, alpha_mu, alpha_sig2, phi, V, Y, r, Lambda, eta, sigma2){
   Time <- length(Y)
   
   # Kalman filter
@@ -300,7 +299,7 @@ for(iter in 1:n_iter) {
   # Update alpha - FFBS
   for(i in 1:N){
     for(j in 1:J){
-      alpha[i,,j] <- ffbs_alpha(alpha_g[i,j], alpha_mu, alpha_sig2, phi, V, Y[i,,j], r[i,,j], Lambda[j,], eta[i,,])
+      alpha[i,,j] <- ffbs_alpha(alpha_g[i,j], alpha_mu, alpha_sig2, phi, V, Y[i,,j], r[i,,j], Lambda[j,], eta[i,,], sigma2)
     }
   }
 
@@ -413,6 +412,7 @@ for(iter in 1:n_iter) {
 }
 
 save.image("C:/Users/SEC/Desktop/research/25summer/may19th/LODI_final_sample.RData")
+# load("C:/Users/SEC/Desktop/research/25summer/may19th/LODI_final_sample.RData")
 
 # ----------------------
 # Posterior Analysis
@@ -479,8 +479,11 @@ for(t in 1:T){
 # alpha group
 table(alpha_g_true) ; table(alpha_g_final)
 
+
+# setwd("C:/Users/SEC/Desktop/research/25summer/may19th")
 # alpha
 for(t in 1:T){
+png(paste0("alpha",t,".png"), width=6, height = 5, units="in",res=300)
 alp_min <- min(alpha_true[,t,], alpha_mean[,t,])
 alp_max <- max(alpha_true[,t,], alpha_mean[,t,])
 
@@ -497,18 +500,23 @@ ht1 <- Heatmap(true,
                column_order = colnames(true), 
                row_order = rownames(true),
                row_title = "Subject", 
-               column_title = "True", 
+               column_title = "True",
+               show_row_names = FALSE,
+               show_column_names = FALSE,
                col = col_fun,
                name = "True")
 ht2 <- Heatmap(estimated, 
                column_order = colnames(estimated), 
                row_order = rownames(estimated),
                row_title = "Subject", 
-               column_title = "Estimated", 
+               column_title = "Estimated",
+               show_row_names = FALSE,
+               show_column_names = FALSE,
                col = col_fun,
                name = "Estimated")
 ht_list <- ht1 + ht2
 draw(ht_list, column_title = paste("alpha at time point",t))
+dev.off()
 }
 
 # weight
@@ -517,11 +525,13 @@ round(weight_true, digits = 2) ; round(weight_final, digits = 2)
 
 # alpha_mu
 alpha_mu_true ; alpha_mu_mean # 샘플이 별로 없으면 값이 정확하지 않다
-alpha_mu_true[weight_true > 0.01] ; sort(alpha_mu_mean[weight_final > 0.01])
+round(alpha_mu_true, digits = 2) ; round(alpha_mu_mean, digits = 2)
+
 
 # alpha_sig2
 alpha_sig2_true ; alpha_sig2_mean
-alpha_sig2_true[weight_true > 0.01] ; sort(alpha_sig2_mean[weight_final > 0.01])
+round(alpha_sig2_true, digits = 2) ; round(alpha_sig2_mean, digits = 2)
+
 
 # phi
 phi_true ; phi_mean
@@ -531,34 +541,38 @@ V_true ; V_mean
 
 # 3. Heatmap
 # Lambda
+png("lambda.png", width=6, height = 5, units="in",res=300)
 col_fun <- colorRamp2(c(-2, 0, 2), c("blue", "white", "red"))
 true <- Lambda_true
 estimated <- Lambda_mean
-compare_mat <- true
-rownames(compare_mat) <- paste0("row", 1:J)
-colnames(compare_mat) <- paste0("column", 1:K)
 ht1 <- Heatmap(true, 
                column_order = colnames(true), 
                row_order = rownames(true),
                row_title = "OTU", 
-               column_title = "True", 
+               column_title = "True",
+               show_row_names = FALSE,
+               show_column_names = FALSE,
                col = col_fun,
                name = "True")
 ht2 <- Heatmap(estimated, 
                column_order = colnames(estimated), 
                row_order = rownames(estimated),
                row_title = "OTU", 
-               column_title = "Estimated", 
+               column_title = "Estimated",
+               show_row_names = FALSE,
+               show_column_names = FALSE,
                col = col_fun,
                name = "Estimated")
 ht_list <- ht1 + ht2
 draw(ht_list, column_title = "Lambda")
+dev.off()
 
 # Eta
 for(t in 1:T){
+  png(paste0("eta",t,".png"), width=6, height = 5, units="in",res=300)
   col_fun <- colorRamp2(c(-2, 0, 2), c("blue", "white", "red"))
-  true <- eta_true[,,t]
-  estimated <- eta_mean[,,t]
+  true <- eta_true[,t,]
+  estimated <- eta_mean[,t,]
   compare_mat <- true
   rownames(compare_mat) <- paste0("row", 1:N)
   colnames(compare_mat) <- paste0("column", 1:K)
@@ -567,6 +581,8 @@ for(t in 1:T){
                  row_order = rownames(true),
                  row_title = "OTU", 
                  column_title = "True",
+                 show_row_names = FALSE,
+                 show_column_names = FALSE,
                  col = col_fun,
                  name = "True")
   ht2 <- Heatmap(estimated, 
@@ -574,10 +590,13 @@ for(t in 1:T){
                  row_order = rownames(estimated),
                  row_title = "OTU", 
                  column_title = "Estimated", 
+                 show_row_names = FALSE,
+                 show_column_names = FALSE,
                  col = col_fun,
                  name = "Estimated")
   ht_list <- ht1 + ht2
   draw(ht_list, column_title = paste("Eta at time point",t))
+  dev.off()
 }
 
 # rho
@@ -603,15 +622,28 @@ compare_mat <- true
 rownames(compare_mat) <- paste0("row", 1:J)
 colnames(compare_mat) <- paste0("column", 1:J)
 col_fun = colorRamp2(c(-2, 0, 2), c("blue", "white", "red"))
-ht1 <- Heatmap(true, column_order = colnames(true), row_order = rownames(true),
-               row_title = "OTU", column_title = "True", col = col_fun)
-ht2 <- Heatmap(estimated, column_order = colnames(estimated), row_order = rownames(estimated),
-               row_title = "OTU", column_title = "Estimated", col = col_fun)
+ht1 <- Heatmap(true,
+               column_order = colnames(true),
+               row_order = rownames(true),
+               row_title = "OTU",
+               column_title = "True",
+               show_row_names = FALSE,
+               show_column_names = FALSE,
+               col = col_fun)
+ht2 <- Heatmap(estimated,
+               column_order = colnames(estimated),
+               row_order = rownames(estimated),
+               row_title = "OTU",
+               column_title = "Estimated",
+               show_row_names = FALSE,
+               show_column_names = FALSE,
+               col = col_fun)
 ht_list <- ht1 + ht2
 draw(ht_list, column_title = "LL^T")
 
 
 # Cov - median
+png(paste0("covariance.png"), width=6, height = 5, units="in",res=300)
 Cov_array <- array(NA, dim = c(J, J, dim(Lambda_samples)[1]))
 for (i in 1:(dim(Lambda_samples)[1])) {
   Cov_array[ , , i] <- 1/(1-rho_samples[i]^2) *tcrossprod(Lambda_samples[i, , ]) + Q_samples[i] * diag(J)
@@ -620,27 +652,28 @@ for (i in 1:(dim(Lambda_samples)[1])) {
 Cov_median <- apply(Cov_array, c(1, 2), median)
 true <- 1/(1-rho_true^2) *tcrossprod(Lambda_true)+ Q_true * diag(J)
 estimated <- Cov_median
-compare_mat <- true
-rownames(compare_mat) <- paste0("row", 1:J)
-colnames(compare_mat) <- paste0("column", 1:J)
 col_fun = colorRamp2(c(-2, 0, 2), c("blue", "white", "red"))
 ht1 <- Heatmap(true, 
                column_order = colnames(true), 
                row_order = rownames(true),
                row_title = "OTU", 
                column_title = "True",
+               show_row_names = FALSE,
+               show_column_names = FALSE,
                name = "True")
 ht2 <- Heatmap(estimated, 
                column_order = colnames(estimated), 
                row_order = rownames(estimated),
                row_title = "OTU", 
                column_title = "Estimated",
+               show_row_names = FALSE,
+               show_column_names = FALSE,
                name = "Estimated")
 ht_list <- ht1 + ht2
 draw(ht_list, column_title = "Cov")
+dev.off()
 
-
-
+png(paste0("covariance2.png"), width=6, height = 5, units="in",res=300)
 rownames(true) <- paste0("row",1:J)
 colnames(true) <- paste0("column",1:J)
 rownames(Cov_median) <- paste0("row",1:J)
@@ -652,9 +685,15 @@ compare_mat
 rownames(compare_mat) <- paste0("row", 1:J)
 colnames(compare_mat) <- paste0("column", 1:J)
 
-Heatmap(compare_mat, column_order = colnames(compare_mat), row_order = rownames(compare_mat),
-        row_title = "lower : true", column_title = gt_render("Cov(Y_it) <br> upper : estimated"), name = "mat") # diagonal part is true value, lower - true, upper - posterior estimate
-
+Heatmap(compare_mat, 
+        column_order = colnames(compare_mat), 
+        row_order = rownames(compare_mat),
+        row_title = "lower : true", 
+        column_title = gt_render("Cov(Y_it) <br> upper : estimated"), 
+        show_row_names = FALSE,
+        show_column_names = FALSE,
+        name = "mat") # diagonal part is true value, lower - true, upper - posterior estimate
+dev.off()
 
 
 # LL^T - mean
@@ -670,10 +709,22 @@ compare_mat <- true
 rownames(compare_mat) <- paste0("row", 1:J)
 colnames(compare_mat) <- paste0("column", 1:J)
 col_fun = colorRamp2(c(-2, 0, 2), c("blue", "white", "red"))
-ht1 <- Heatmap(true, column_order = colnames(true), row_order = rownames(true),
-               row_title = "OTU", column_title = "True", col = col_fun)
-ht2 <- Heatmap(estimated, column_order = colnames(estimated), row_order = rownames(estimated),
-               row_title = "OTU", column_title = "Estimated", col = col_fun)
+ht1 <- Heatmap(true, 
+               column_order = colnames(true), 
+               row_order = rownames(true),
+               row_title = "OTU", 
+               column_title = "True", 
+               show_row_names = FALSE,
+               show_column_names = FALSE,
+               col = col_fun)
+ht2 <- Heatmap(estimated, 
+               column_order = colnames(estimated), 
+               row_order = rownames(estimated),
+               row_title = "OTU", 
+               column_title = "Estimated", 
+               show_row_names = FALSE,
+               show_column_names = FALSE,
+               col = col_fun)
 ht_list <- ht1 + ht2
 draw(ht_list, column_title = "LL^T")
 
@@ -691,10 +742,20 @@ compare_mat <- true
 rownames(compare_mat) <- paste0("row", 1:J)
 colnames(compare_mat) <- paste0("column", 1:J)
 col_fun = colorRamp2(c(-2, 0, 2), c("blue", "white", "red"))
-ht1 <- Heatmap(true, column_order = colnames(true), row_order = rownames(true),
-               row_title = "OTU", column_title = "True")
-ht2 <- Heatmap(estimated, column_order = colnames(estimated), row_order = rownames(estimated),
-               row_title = "OTU", column_title = "Estimated")
+ht1 <- Heatmap(true,
+               column_order = colnames(true),
+               row_order = rownames(true),
+               row_title = "OTU",
+               show_row_names = FALSE,
+               show_column_names = FALSE,
+               column_title = "True")
+ht2 <- Heatmap(estimated,
+               column_order = colnames(estimated),
+               row_order = rownames(estimated),
+               row_title = "OTU",
+               show_row_names = FALSE,
+               show_column_names = FALSE,
+               column_title = "Estimated")
 ht_list <- ht1 + ht2
 draw(ht_list, column_title = "Cov")
 
@@ -709,5 +770,11 @@ compare_mat
 rownames(compare_mat) <- paste0("row", 1:J)
 colnames(compare_mat) <- paste0("column", 1:J)
 
-Heatmap(compare_mat, column_order = colnames(compare_mat), row_order = rownames(compare_mat),
-        row_title = "lower : true", column_title = gt_render("Cov(Y_it) <br> upper : estimated"), name = "mat") # diagonal part is true value, lower - true, upper - posterior estimate
+Heatmap(compare_mat, 
+        column_order = colnames(compare_mat), 
+        row_order = rownames(compare_mat),
+        row_title = "lower : true", 
+        column_title = gt_render("Cov(Y_it) <br> upper : estimated"), 
+        show_row_names = FALSE,
+        show_column_names = FALSE,
+        name = "mat") # diagonal part is true value, lower - true, upper - posterior estimate

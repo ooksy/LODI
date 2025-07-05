@@ -1,29 +1,67 @@
-# data
-mouse <- read.csv("data/microbiome_modified.csv")
-mouse$Genotype <- factor(mouse$Genotype, levels = c("WT", "ACKG", "ACK", "HACKG", "HACK"))
-mouse$Grouped.genotype <- factor(mouse$Grouped.genotype, levels = c("WT", "ACK/G", "HACK/G"), ordered = T)
-mouse$Timepoint <- factor(mouse$Timepoint, levels = c("W0", "W1", "W3", "W7", "W11", "W15", "W19"))
+library(compositions)
+library(corrplot)
 
-uniq_grp <- unique(mouse$Grouped.genotype)
+# data
+mouse <- read.csv("data/microbiome_complete.csv")
+mouse$Genotype.f <- factor(mouse$Genotype, levels = c("WT", "ACKG", "ACK", "HACKG", "HACK"), ordered = T)
+mouse$Grouped.genotype.f <- factor(mouse$Grouped.genotype, levels = c("WT", "ACK/G", "HACK/G"), ordered = T)
+mouse$Timepoint.f <- factor(mouse$Timepoint, levels = paste0("W", c(0, 1, 3, 7, 11, 15, 19)), ordered = T)
+
 uniq_grp3 <- unique(mouse$Grouped.genotype)
 uniq_grp5 <- unique(mouse$Genotype)
 uniq_timept <- unique(mouse$Timepoint)
 
-View(mouse)
 
-# Make true data list
-# 같은 mouse가 같은 자리에 있어야함? - time point 마다 샘플들이 다르다
+# Make true data array
 Data <- mouse[, 6:59]
-Data_true <- list()
+Data_true <- array(0, dim=c(20, 7, 54))
+nrow(Data)
+ncol(Data)
 
-for(i in uniq_timept){
-  Data_true[[i]] <- Data[mouse$Timepoint == i, ]
+for(i in seq_along(uniq_timept)){
+  idx <- uniq_timept[i]
+  Data_true[,i,] <- as.matrix(Data[mouse$Timepoint == idx, ])
 }
 
 Data_true
+log(sum(Data_true[1,1,]))
+log(sum(Data_true[2,1,]))
+log(sum(Data_true[3,1,]))
 
 
-# density plot aloOTU1# density plot aloOTU1# density plot along the timepoint : real data
+sum(log(Data_true + 0.01)[1,1,])
+sum(log(Data_true + 0.01)[2,1,])
+sum(log(Data_true + 0.01)[3,1,])
+
+
+Data_true_clr <- array(0, dim=c(20, 7, 54))
+for(t in 1:T){
+  Data_true_clr[,t,] <- clr(Data_true[,t,])
+}
+
+
+setwd("C:/Users/SEC/Desktop/research/25summer/may19th")
+
+for(t in 1:T){
+png(paste0("cov",t,".png"), width=6, height = 5, units="in",res=300)
+cov1 <- cov(Data_true_clr[,t,])
+rownames(cov1) <- paste("row", 1:J)
+colnames(cov1) <- paste("col", 1:J)
+col_fun <- colorRamp2(c(-2, 0, 2), c("blue", "white", "red"))
+ht <- Heatmap(cov1, 
+              column_order = colnames(cov1), 
+              row_order = rownames(cov1),
+              row_title = "OTU 1-54", 
+              column_title = "OTU 1-54",
+              show_row_names = FALSE,
+              show_column_names = FALSE,
+              name = "Covariance")
+draw(ht, column_title = paste0("True Cov : time point", t))
+dev.off()
+}
+
+
+# density plot along the timepoint : real data
 par(mfrow = c(1,length(uniq_timept)))
 for(i in 1:length(uniq_grp)){
   for(j in 1:length(uniq_timept)){
@@ -116,7 +154,6 @@ for(i in 2){
   }
 }
 
-i=2;j=1
 
 par(mfrow = c(1,1))
 # density - transform한 값으로 해볼까?

@@ -10,78 +10,11 @@ set.seed(123)
 N <- 20     # Number of subjects
 T <- 7      # Time points
 J <- 54     # Observed variables
-K <- 3      # Latent factors
+K <- 5      # Latent factors
 L <- 30     # Dirichlet mixture group
 
-# True parameters
-r_true <- array(0, dim = c(N, T, J))
-r_true[,,] <- matrix(runif(N*T, min = 0, max = 2), nrow = N, ncol = T)
 
-
-# alpha simple group case
-weight_true <- c(0.5, 0.3, 0.2)
-alpha_mu_true <- c(-4, 2, 8)
-alpha_sig2_true <- c(0.5, 0.3, 0.2)
-alpha_g_true <- matrix(sample(1:length(weight_true), size = N*J, replace = T, prob = weight_true), nrow = N, ncol = J)
-
-# weight_true <- rdirichlet(1, rep(1/L, L))
-# alpha_mu_true <- seq(from = -4, to = 8, length = L)
-# alpha_sig2_true <- seq(from = 0.1, to = 1.5, length = L)
-# alpha_g_true <- matrix(sample(1:L, size = N*J, replace = T, prob = weight_true), nrow = N, ncol = J)
-
-alpha_true <- array(0, dim = c(N, T, J))
-
-phi_true <- 0.8
-V_true <- 0.2
-
-for(i in 1:N){
-  for(j in 1:J){
-    g_idx <- alpha_g_true[i,j]
-    alpha_true[i,1,j] <- rnorm(1, alpha_mu_true[g_idx], alpha_sig2_true[g_idx])
-  }
-}
-
-for(t in 2:T){
-  alpha_true[,t,] <- phi_true * alpha_true[,t-1,] + rmvnorm(N, mean = rep(0,J), sigma = diag(V_true, J))
-}
-
-
-Lambda_true <- matrix(0, nrow = J, ncol = K)
-for(j in 1:J) {
-  for(k in 1:min(j, K)) {
-    if(j == k) {
-      Lambda_true[j, k] <- 1
-    } else {
-      Lambda_true[j, k] <- rnorm(1, 0, 0.5)
-    }
-  }
-}
-sigma2_true <- 0.5  # Observation error variance
-rho_true <- 0.7     # AR(1) coefficient
-Q_true <- 0.2       # Innovation variance
-
-
-# Simulate latent factors (AR(1) process)
-eta_true <- array(0, dim = c(N, T, K))
-for(i in 1:N) {
-  eta_true[i, 1, ] <- rnorm(K)
-  for(t in 2:T) {
-    eta_true[i, t, ] <- rho_true * eta_true[i, t-1, ] + rnorm(K, sd = sqrt(Q_true))
-  }
-}
-
-# Simulate observed data
-Y_true <- array(0, dim = c(N, T, J))
-for(i in 1:N) {
-  for(t in 1:T) {
-    Y_true[i, t, ] <- r_true[i, t,] + alpha_true[i, t,] + Lambda_true %*% eta_true[i, t, ] + rnorm(J, sd = sqrt(sigma2_true))
-  }
-}
-
-Y_count_true <- floor(exp(Y_true))
-Y_count_true[,1,]
-Y_count_true[,2,]
-Y_count_true[,3,]
+Y_count_true <- Data_true
 
 
 # ----------------------
@@ -122,11 +55,10 @@ rho <- 0.5    # AR(1) coefficient
 Q <- 1      # AR(1) innovation variance
 
 # MCMC settings
-n_iter <- 50000
-# burn_in <- n_iter/2
-# thin <- 2
-# keep <- seq(burn_in + 1, n_iter, by = thin)
-keep <- 1:n_iter
+n_iter <- 20000
+burn_in <- n_iter/2
+thin <- 2
+keep <- seq(burn_in + 1, n_iter, by = thin)
 
 
 # Storage
@@ -412,7 +344,8 @@ for(iter in 1:n_iter) {
   if(iter %% 100 == 0) cat("Iteration:", iter, "\n")
 }
 
-save.image("C:/Users/SEC/Desktop/research/25summer/may19th/LODI_final_sample.RData")
+save.image("C:/Users/SEC/Desktop/research/25summer/may19th/RealData.RData")
+load("C:/Users/SEC/Desktop/research/25summer/may19th/RealData.RData")
 
 # ----------------------
 # Posterior Analysis
@@ -434,30 +367,21 @@ Q_mean <- mean(Q_samples)
 sigma2_mean <- mean(sigma2_samples)
 
 # 1. Parameter comparison
-cat("\nParameter Recovery:\n")
-cat("True sigma²:", sigma2_true, 
-    "| Estimated sigma²:", round(mean(sigma2_samples), 3), "\n")
-cat("True phi:", phi_true, 
-    "| Estimated phi:", round(mean(phi_samples), 3), "\n")
-cat("True V:", V_true, 
-    "| Estimated V:", round(mean(V_samples), 3), "\n")
-cat("True rho:", rho_true, 
-    "| Estimated rho:", round(mean(rho_samples), 3), "\n")
-cat("True Q:", Q_true, 
-    "| Estimated Q:", round(mean(Q_samples), 3), "\n")
 
 # 2. Trace plots
+gettwd()
+setwd("C:/Users/SEC/Desktop/research/25summer/may26th")
+png(paste0("tsplot1.png"), width=5, height = 5, units="in",res=500)
 par(mfrow=c(2,1))
 plot(phi_samples, type="l", main="Trace plot: phi")
-abline(h = phi_true, col = 'red')
 plot(V_samples, type="l", main="Trace plot: V")
-abline(h = V_true, col = 'red')
+dev.off()
 
+png(paste0("tsplot2.png"), width=5, height = 5, units="in",res=500)
 par(mfrow=c(2,1))
 plot(rho_samples, type="l", main="Trace plot: rho")
-abline(h = rho_true, col = 'red')
 plot(Q_samples, type="l", main="Trace plot: Q")
-abline(h = Q_true, col = 'red')
+dev.off()
 
 # Latent Y Plot
 par(mfrow = c(1,T))
@@ -468,177 +392,150 @@ for(t in 1:T){
 }
 
 # normalizing constant r
-par(mfrow = c(1,T))
 for(t in 1:T){
-  plot(r_mean[,t,1], r_true[,t,1],
-       main = paste("time point", t), xlab = "post mean r", ylab = "true r")
-  abline(0, 1, col = "red")
+  cat(paste("normalizing constant at time point", t), round(r_mean[,t,1], digits = 2), "\n")
 }
 
 # normalized abundance alpha
 # alpha group
-table(alpha_g_true) ; table(alpha_g_final)
+table(alpha_g_final)
 
 # alpha
 for(t in 1:T){
-  alp_min <- min(alpha_true[,t,], alpha_mean[,t,])
-  alp_max <- max(alpha_true[,t,], alpha_mean[,t,])
+  png(paste0("alpha",t,".png"), width=8, height = 5, units="in",res=500)
+  alp_min <- min(alpha_mean[,t,])
+  alp_max <- max(alpha_mean[,t,])
   
-  col_fun <- colorRamp2(c(alp_min, 0, alp_max), c("blue", "white", "red"))
-  true <- alpha_true[,t,]
+  col_fun <- colorRamp2(c(alp_min, median(c(alp_min, alp_max)), alp_max), c("blue", "white", "red"))
   estimated <- alpha_mean[,t,]
   
-  rownames(true) <- paste("row", 1:N)
-  colnames(true) <- paste("col", 1:J)
   rownames(estimated) <- paste("row", 1:N)
   colnames(estimated) <- paste("col", 1:J)
   
-  ht1 <- Heatmap(true, 
-                 column_order = colnames(true), 
-                 row_order = rownames(true),
-                 row_title = "Subject", 
-                 column_title = "True", 
-                 col = col_fun,
-                 name = "True")
   ht2 <- Heatmap(estimated, 
                  column_order = colnames(estimated), 
                  row_order = rownames(estimated),
-                 row_title = "Subject", 
-                 column_title = "Estimated", 
+                 row_title = "Subject 1-20", 
+                 column_title = "OTU 1-54", 
+                 show_row_names = FALSE,
+                 show_column_names = FALSE,
                  col = col_fun,
-                 name = "Estimated")
-  ht_list <- ht1 + ht2
-  draw(ht_list, column_title = paste("alpha at time point",t))
+                 name = "alpha value")
+  ht_list <- ht2
+  draw(ht_list, column_title = paste("posterior mean of alpha at time point",t))
+  dev.off()
 }
 
 # weight
-weight_true ; weight_final
-round(weight_true, digits = 2) ; round(weight_final, digits = 2)
+round(weight_final, digits = 2)
 
 # alpha_mu
-alpha_mu_true ; alpha_mu_mean # 샘플이 별로 없으면 값이 정확하지 않다
-alpha_mu_true[weight_true > 0.01] ; sort(alpha_mu_mean[weight_final > 0.01])
+alpha_mu_mean 
 
 # alpha_sig2
-alpha_sig2_true ; alpha_sig2_mean
-alpha_sig2_true[weight_true > 0.01] ; sort(alpha_sig2_mean[weight_final > 0.01])
+alpha_sig2_mean
 
 # phi
-phi_true ; phi_mean
+phi_mean
 
 # V
-V_true ; V_mean
+V_mean
 
 # 3. Heatmap
 # Lambda
-col_fun <- colorRamp2(c(-2, 0, 2), c("blue", "white", "red"))
-true <- Lambda_true
+png(paste0("Lambda.png"), width=5, height = 6, units="in",res=500)
+col_fun <- colorRamp2(c(min(Lambda_mean), median(Lambda_mean), max(Lambda_mean)), c("blue", "white", "red"))
 estimated <- Lambda_mean
-compare_mat <- true
-rownames(compare_mat) <- paste0("row", 1:J)
-colnames(compare_mat) <- paste0("column", 1:K)
-ht1 <- Heatmap(true, 
-               column_order = colnames(true), 
-               row_order = rownames(true),
-               row_title = "OTU", 
-               column_title = "True", 
-               col = col_fun,
-               name = "True")
-ht2 <- Heatmap(estimated, 
+rownames(estimated) <- paste0("row", 1:J)
+colnames(estimated) <- paste0("column", 1:K)
+ht <- Heatmap(estimated, 
                column_order = colnames(estimated), 
                row_order = rownames(estimated),
-               row_title = "OTU", 
-               column_title = "Estimated", 
+               row_title = "OTU 1-54", 
+               column_title = "Factor 1-5",
+               show_row_names = FALSE,
+               show_column_names = FALSE,
                col = col_fun,
-               name = "Estimated")
-ht_list <- ht1 + ht2
-draw(ht_list, column_title = "Lambda")
+               name = "Lambda")
+draw(ht, column_title = "Posterior mean of Lambda")
+dev.off()
 
 # Eta
 for(t in 1:T){
-  col_fun <- colorRamp2(c(-2, 0, 2), c("blue", "white", "red"))
-  true <- eta_true[,,t]
-  estimated <- eta_mean[,,t]
-  compare_mat <- true
-  rownames(compare_mat) <- paste0("row", 1:N)
-  colnames(compare_mat) <- paste0("column", 1:K)
-  ht1 <- Heatmap(true, 
-                 column_order = colnames(true), 
-                 row_order = rownames(true),
-                 row_title = "OTU", 
-                 column_title = "True",
-                 col = col_fun,
-                 name = "True")
-  ht2 <- Heatmap(estimated, 
+  png(paste0("Eta",t,".png"), width=5, height = 6, units="in",res=500)
+  col_fun <- colorRamp2(c(min(eta_mean), median(eta_mean), max(eta_mean)), c("blue", "white", "red"))
+  estimated <- eta_mean[,t,]
+  rownames(estimated) <- paste0("row", 1:N)
+  colnames(estimated) <- paste0("column", 1:K)
+  ht <- Heatmap(estimated, 
                  column_order = colnames(estimated), 
                  row_order = rownames(estimated),
-                 row_title = "OTU", 
-                 column_title = "Estimated", 
+                 row_title = "Subject 1-20", 
+                 column_title = "Factor 1-5", 
+                 show_row_names = FALSE,
+                 show_column_names = FALSE,
                  col = col_fun,
-                 name = "Estimated")
-  ht_list <- ht1 + ht2
-  draw(ht_list, column_title = paste("Eta at time point",t))
+                 name = "Eta")
+  draw(ht, column_title = paste("Posterior mean of eta at time point",t))
+  dev.off()
 }
 
 # rho
-rho_true ; rho_mean
+rho_mean
 
 # Q
-Q_true ; Q_mean
+Q_mean
 
 # Sigma2
-sigma2_true ; sigma2_mean
+sigma2_mean
 
 
 # LL^T - median
+png(paste0("LL^T.png"), width=9, height = 8, units="in",res=500)
 tcross_array <- array(NA, dim = c(J, J, dim(Lambda_samples)[1]))
 for (i in 1:(dim(Lambda_samples)[1])) {
   tcross_array[ , , i] <- tcrossprod(Lambda_samples[i, , ])
 }
 # Compute the posterior median across iterations
 Lambda_median <- apply(tcross_array, c(1, 2), median)
-true <- tcrossprod(Lambda_true)
 estimated <- Lambda_median
-compare_mat <- true
-rownames(compare_mat) <- paste0("row", 1:J)
-colnames(compare_mat) <- paste0("column", 1:J)
-col_fun = colorRamp2(c(-2, 0, 2), c("blue", "white", "red"))
-ht1 <- Heatmap(true, column_order = colnames(true), row_order = rownames(true),
-               row_title = "OTU", column_title = "True", col = col_fun)
-ht2 <- Heatmap(estimated, column_order = colnames(estimated), row_order = rownames(estimated),
-               row_title = "OTU", column_title = "Estimated", col = col_fun)
-ht_list <- ht1 + ht2
-draw(ht_list, column_title = "LL^T")
-
+rownames(estimated) <- paste0("row", 1:J)
+colnames(estimated) <- paste0("column", 1:J)
+col_fun = colorRamp2(c(-5,0,10), c("blue", "white", "red"))
+ht <- Heatmap(estimated, 
+              column_order = colnames(estimated), 
+              row_order = rownames(estimated),
+               row_title = "OTU 1-54", 
+              column_title = "OTU 1-54", 
+              show_row_names = FALSE,
+              show_column_names = FALSE,
+              name = "Post median",
+              col = col_fun)
+draw(ht, column_title = "Posterior median of LL^T")
+dev.off()
 
 # Cov - median
+png(paste0("Cov.png"), width=9, height = 8, units="in",res=500)
 Cov_array <- array(NA, dim = c(J, J, dim(Lambda_samples)[1]))
 for (i in 1:(dim(Lambda_samples)[1])) {
   Cov_array[ , , i] <- 1/(1-rho_samples[i]^2) *tcrossprod(Lambda_samples[i, , ]) + Q_samples[i] * diag(J)
 }
 # Compute the posterior median across iterations
 Cov_median <- apply(Cov_array, c(1, 2), median)
-true <- 1/(1-rho_true^2) *tcrossprod(Lambda_true)+ Q_true * diag(J)
 estimated <- Cov_median
-compare_mat <- true
-rownames(compare_mat) <- paste0("row", 1:J)
-colnames(compare_mat) <- paste0("column", 1:J)
-col_fun = colorRamp2(c(-2, 0, 2), c("blue", "white", "red"))
-ht1 <- Heatmap(true, 
-               column_order = colnames(true), 
-               row_order = rownames(true),
-               row_title = "OTU", 
-               column_title = "True",
-               name = "True")
-ht2 <- Heatmap(estimated, 
+rownames(estimated) <- paste0("row", 1:J)
+colnames(estimated) <- paste0("column", 1:J)
+col_fun = colorRamp2(c(-20,0,100), c("blue", "white", "red"))
+ht <- Heatmap(estimated, 
                column_order = colnames(estimated), 
                row_order = rownames(estimated),
-               row_title = "OTU", 
-               column_title = "Estimated",
-               name = "Estimated")
-ht_list <- ht1 + ht2
-draw(ht_list, column_title = "Cov")
-
+               row_title = "OTU 1-54", 
+               column_title = "OTU 1-54",
+              show_row_names = FALSE,
+              show_column_names = FALSE,
+               name = "Post median")
+draw(ht, column_title = "Posterior median of Cov")
+dev.off()
 
 
 rownames(true) <- paste0("row",1:J)
@@ -652,8 +549,14 @@ compare_mat
 rownames(compare_mat) <- paste0("row", 1:J)
 colnames(compare_mat) <- paste0("column", 1:J)
 
-Heatmap(compare_mat, column_order = colnames(compare_mat), row_order = rownames(compare_mat),
-        row_title = "lower : true", column_title = gt_render("Cov(Y_it) <br> upper : estimated"), name = "mat") # diagonal part is true value, lower - true, upper - posterior estimate
+Heatmap(compare_mat, 
+        column_order = colnames(compare_mat), 
+        show_row_names = FALSE,
+        show_column_names = FALSE,
+        row_order = rownames(compare_mat),
+        row_title = "lower : true", 
+        column_title = gt_render("Cov(Y_it) <br> upper : estimated"), n
+        ame = "mat") # diagonal part is true value, lower - true, upper - posterior estimate
 
 
 
