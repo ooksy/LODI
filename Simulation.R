@@ -457,8 +457,27 @@ for(s in 1:nsim){
 }
 
 
-save.image("C:/Users/SEC/Desktop/research/25summer/may26th/n20j50t9.RData")
+# save.image("C:/Users/SEC/Desktop/research/25summer/may26th/n20j50t9.RData")
 load("C:/Users/SEC/Desktop/research/25summer/may26th/n20j50t9.RData")
 
+r_rmse_true <- sqrt(mean((r_true)^2))
+
+alpha_rmse_true <- sqrt(mean((alpha_true)^2))
+
+Cov_true <- 1/(1-rho_true^2) *tcrossprod(Lambda_true)+ Q_true * diag(J)
+
+Cov_rmse_true <- sqrt(mean((Cov_true)^2))
+
+Cov_frob_true <- frobenius.norm(Cov_true)
+
+true_vec <- c(r_rmse_true, alpha_rmse_true, Cov_rmse_true, Cov_frob_true)
+
+
 res_clean <- lapply(res, unlist)
-round(colMeans(do.call(rbind, res_clean)), 3)
+res_mat <- do.call(rbind, res_clean)
+res_mat[,4] <- sqrt(((res_mat[,3])^2)*(J^2))
+round(colMeans(res_mat), 3)
+
+
+round(colMeans(res_mat)/true_vec, 3)
+

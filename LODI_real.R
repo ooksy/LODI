@@ -5,6 +5,7 @@ library(MCMCpack)
 library(truncnorm) 
 library(circlize)
 library(ComplexHeatmap)
+library(coda) 
 
 set.seed(123) 
 N <- 20     # Number of subjects
@@ -55,11 +56,10 @@ rho <- 0.5    # AR(1) coefficient
 Q <- 1      # AR(1) innovation variance
 
 # MCMC settings
-n_iter <- 20000
-burn_in <- n_iter/2
-thin <- 2
+n_iter <- 50000
+burn_in <- 10000
+thin <- 20
 keep <- seq(burn_in + 1, n_iter, by = thin)
-
 
 # Storage
 Y_samples <- array(NA, dim = c(length(keep), N, T, J))
@@ -344,8 +344,13 @@ for(iter in 1:n_iter) {
   if(iter %% 100 == 0) cat("Iteration:", iter, "\n")
 }
 
-save.image("C:/Users/SEC/Desktop/research/25summer/may19th/RealData.RData")
-load("C:/Users/SEC/Desktop/research/25summer/may19th/RealData.RData")
+# save.image("C:/Users/SEC/Desktop/research/25summer/july7th/RealData2.RData")
+# load("C:/Users/SEC/Desktop/research/25summer/july7th/RealData.RData")
+
+
+acf(r_samples[,15,1,1])
+ts.plot(r_samples[,15,1,1])
+effectiveSize(r_samples[,15,1,1])
 
 # ----------------------
 # Posterior Analysis
@@ -393,8 +398,22 @@ for(t in 1:T){
 
 # normalizing constant r
 for(t in 1:T){
-  cat(paste("normalizing constant at time point", t), round(r_mean[,t,1], digits = 2), "\n")
+  cat(paste("normalizing constant at time point", t), "\n", round(r_mean[,t,1], digits = 2), "\n")
 }
+
+r_mean[,,1]
+ts.plot(r_samples[,1,1,1])
+acf(r_samples[,1,1,1])
+
+ess_total <- c()
+for(i in 1:20){
+  for(t in 1:7){
+    ess <- effectiveSize(r_samples[,i,t,1])
+    ess_total <- c(ess_total, ess)
+  }
+}
+hist(ess_total)
+summary(ess_total)
 
 # normalized abundance alpha
 # alpha group

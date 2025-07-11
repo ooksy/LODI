@@ -41,7 +41,7 @@ for(t in 1:T){
 
 
 setwd("C:/Users/SEC/Desktop/research/25summer/may19th")
-
+t=7
 for(t in 1:T){
 png(paste0("cov",t,".png"), width=6, height = 5, units="in",res=300)
 cov1 <- cov(Data_true_clr[,t,])
